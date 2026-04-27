@@ -10,11 +10,13 @@ export default function Camions() {
   const { settings } = useSettings();
   const [camions, setCamions] = useState<any[]>([]);
   const [chargements, setChargements] = useState<any[]>([]);
+  const [dossiers, setDossiers] = useState<any[]>([]);
   const [showNew, setShowNew] = useState(false);
   const [newCamion, setNewCamion] = useState({ numero: "", chauffeur: "" });
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ numero: "", chauffeur: "" });
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [assigningLoading, setAssigningLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "camions"), orderBy("createdAt", "desc"));
@@ -30,8 +32,31 @@ export default function Camions() {
       handleFirestoreError(error, OperationType.LIST, "chargements");
     });
 
-    return () => { unsubC(); unsubCh(); };
+    const unsubD = onSnapshot(collection(db, "dossiers"), (snap) => {
+      setDossiers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "dossiers");
+    });
+
+    return () => { unsubC(); unsubCh(); unsubD(); };
   }, []);
+
+  const pendingMissions = chargements.filter(ch => ch.typeTransporteur === 'interne' && !ch.camionId);
+
+  const handleAssignCamion = async (chargementId: string, camionId: string) => {
+    if (!camionId) return;
+    setAssigningLoading(chargementId);
+    try {
+      await updateDoc(doc(db, "chargements", chargementId), {
+        camionId: camionId,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `chargements/${chargementId}`);
+    } finally {
+      setAssigningLoading(null);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +127,55 @@ export default function Camions() {
           <Plus className="w-4 h-4" /> Ajouter un véhicule
         </button>
       </div>
+
+      {/* Missions Internes en Attente */}
+      {pendingMissions.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-[2rem] p-8 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-amber-900 dark:text-amber-400 uppercase tracking-tighter">Missions Internes en Attente</h2>
+              <p className="text-amber-700/60 dark:text-amber-500/60 text-[10px] font-bold uppercase tracking-widest">{pendingMissions.length} conteneur(s) interne(s) à assigner</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingMissions.map(miss => {
+              const dossier = dossiers.find(d => d.id === miss.dossierId);
+              return (
+                <div key={miss.id} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-amber-200/50 dark:border-amber-800/30 shadow-sm flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Conteneur</p>
+                      <h4 className="font-black text-slate-900 dark:text-white uppercase">{miss.numeroConteneur}</h4>
+                    </div>
+                    <div className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-[10px] font-bold text-slate-500 uppercase">
+                      BL #{dossier?.numeroBL || "???"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Assigner à la Flotte :</label>
+                    <select 
+                      disabled={assigningLoading === miss.id}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50"
+                      onChange={(e) => handleAssignCamion(miss.id, e.target.value)}
+                      value=""
+                    >
+                      <option value="">Choisir un camion...</option>
+                      {camions.filter(c => c.statut === 'actif').map(c => (
+                        <option key={c.id} value={c.id}>{c.numero} - {c.chauffeur}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {showNew && (
         <form onSubmit={handleCreate} className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2rem] lg:rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-4">

@@ -22,9 +22,15 @@ export default function Finances() {
   }, []);
 
   const handlePay = async (id: string) => {
+    const chargement = chargements.find(c => c.id === id);
+    if (!chargement) return;
+
     try {
+      const totalAmount = Number(chargement.prixTotal) || 0;
       await updateDoc(doc(db, "chargements", id), {
         statutPaiement: "paye",
+        avance: totalAmount,
+        solde: 0,
         datePaiement: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });

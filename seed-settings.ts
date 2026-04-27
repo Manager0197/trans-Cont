@@ -12,7 +12,6 @@ async function seed() {
       devise: "FCFA",
       prix20: 150000,
       prix40: 250000,
-      surcharge: 5000,
       updatedAt: new Date().toISOString()
     });
     console.log("Global settings seeded successfully");

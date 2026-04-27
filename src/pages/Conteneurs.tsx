@@ -80,12 +80,6 @@ export default function Conteneurs() {
           </h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight">Registre centralisé des unités scellées (EVP) et cycle de vie</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-500/20 active:scale-95"
-        >
-          <Plus className="w-4 h-4" /> Enregistrer un conteneur
-        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -94,8 +88,6 @@ export default function Conteneurs() {
         <SummaryCard label="Conteneurs 40'" value={stats.c40} icon={<Box className="w-6 h-6" />} color="bg-amber-600 shadow-amber-500/10" />
         <SummaryCard label="Hors Garabits" value={stats.other} icon={<Box className="w-6 h-6" />} color="bg-slate-800 shadow-slate-500/10" />
       </div>
-
-      {showModal && <RegisterContainerModal dossiers={dossiers} onClose={() => setShowModal(false)} />}
 
       <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-8 transition-colors">
         <div className="flex flex-col md:flex-row gap-4">
@@ -224,102 +216,4 @@ function SummaryCard({ label, value, icon, color }: { label: string, value: numb
   );
 }
 
-function RegisterContainerModal({ dossiers, onClose }: { dossiers: any[], onClose: () => void }) {
-  const [form, setForm] = useState({
-    numero: "",
-    type: "20'",
-    dossierId: ""
-  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.numero || !form.dossierId) return;
-
-    try {
-      await addDoc(collection(db, "conteneurs"), {
-        ...form,
-        createdAt: new Date().toISOString()
-      });
-      onClose();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, "conteneurs");
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl border border-white overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-slate-900 p-8 text-white flex justify-between items-center">
-          <div>
-            <h3 className="text-2xl font-black uppercase tracking-tighter">Entrée d'Unité EVP</h3>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Enregistrement manuel dans le registre</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Dossier BL Associé</label>
-              <select 
-                required
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 font-bold outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.dossierId}
-                onChange={e => setForm({...form, dossierId: e.target.value})}
-              >
-                <option value="">Sélectionner un dossier BL...</option>
-                {dossiers.map(d => (
-                  <option key={d.id} value={d.id}>BL #{d.numeroBL} - ({d.nbConteneurs} cont.)</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Matricule Conteneur</label>
-                <input 
-                  required
-                  type="text"
-                  placeholder="Ex: MEDU1234567"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500"
-                  value={form.numero}
-                  onChange={e => setForm({...form, numero: e.target.value})}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Type / Format</label>
-                <select 
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 font-bold outline-none focus:ring-2 focus:ring-blue-500"
-                  value={form.type}
-                  onChange={e => setForm({...form, type: e.target.value})}
-                >
-                  <option value="20'">Standard 20'</option>
-                  <option value="40'">High Cube 40'</option>
-                  <option value="Autre">Autre format</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-4 pt-4">
-            <button 
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-6 py-4 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-500 hover:bg-slate-50 transition-all"
-            >
-              Annuler
-            </button>
-            <button 
-              type="submit"
-              className="flex-1 bg-slate-900 text-white px-6 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95"
-            >
-              Enregistrer l'unité
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}

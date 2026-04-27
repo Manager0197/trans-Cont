@@ -81,7 +81,6 @@
         "devise": { "type": "string" },
         "prix20": { "type": "number" },
         "prix40": { "type": "number" },
-        "surcharge": { "type": "number" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     }

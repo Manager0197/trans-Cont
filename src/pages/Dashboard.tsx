@@ -194,7 +194,7 @@ export default function Dashboard() {
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Conteneurs</th>
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Transp. (Int / Ext)</th>
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Montant Global</th>
-                <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Montant Payé</th>
+                <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Paiement / Réglement</th>
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Reste à Payer</th>
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Statut</th>
               </tr>
@@ -237,9 +237,14 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <span className="font-black text-emerald-600 dark:text-emerald-400">
-                        {doc.montantPaye.toLocaleString()} <span className="text-emerald-400/50 font-bold text-xs">{settings.devise}</span>
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className={`text-[10px] font-black uppercase tracking-tighter ${doc.statusGlobalPaiement === 'paye' ? 'text-emerald-500' : 'text-slate-500'}`}>
+                          {doc.statusGlobalPaiement === 'paye' ? 'Montant Soldé' : 'Avance'}
+                        </span>
+                        <div className="font-black text-slate-900 dark:text-white">
+                          {doc.montantPaye.toLocaleString()} <span className="text-slate-400 font-bold text-xs">{settings.devise}</span>
+                        </div>
+                      </div>
                     </td>
                     <td className="p-4 text-right">
                       <span className={`font-black ${doc.montantDu > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>

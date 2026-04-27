@@ -18,11 +18,11 @@ export default function Dossiers() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [newDossier, setNewDossier] = useState<{numeroBL: string, nbConteneurs: number | string, prixContrat: number | string}>({ numeroBL: "", nbConteneurs: 1, prixContrat: "" });
-  const [newConteneurs, setNewConteneurs] = useState([{ id: Math.random(), numero: '', type: "20'", transport: 'interne', prix: 50000, avance: 0 }]);
+  const [newConteneurs, setNewConteneurs] = useState([{ id: Math.random(), numero: '', type: "20'", transport: 'interne', prix: 0, avance: 0 }]);
 
   const DEFAULT_PRICES: any = useMemo(() => ({
-    interne: { "20'": 50000, "40'": 90000 },
-    externe: { "20'": settings.prix20, "40'": settings.prix40 }
+    interne: { "20'": 0, "40'": 0 },
+    externe: { "20'": 0, "40'": 0 }
   }), [settings]);
 
   const handleNbConteneursChange = (valStr: string) => {
@@ -41,7 +41,7 @@ export default function Dossiers() {
           numero: '', 
           type: "20'", 
           transport: 'interne', 
-          prix: 50000, 
+          prix: 0, 
           avance: 0 
         });
       }
@@ -74,6 +74,8 @@ export default function Dossiers() {
       return matchesSearch && matchesStatus;
     });
   }, [dossiers, searchTerm, statusFilter]);
+
+  const totalPrevCost = useMemo(() => newConteneurs.reduce((acc, c) => acc + (Number(c.prix) || 0), 0), [newConteneurs]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,7 +132,7 @@ export default function Dossiers() {
         setShowNew(false);
         setSaveSuccess(false);
         setNewDossier({ numeroBL: "", nbConteneurs: 1, prixContrat: "" });
-        setNewConteneurs([{ id: Math.random(), numero: '', type: "20'", transport: 'interne', prix: 50, avance: 0 }]);
+        setNewConteneurs([{ id: Math.random(), numero: '', type: "20'", transport: 'interne', prix: 0, avance: 0 }]);
       }, 1500);
     } catch (err) {
       console.error("Erreur d'enregistrement:", err);
@@ -219,19 +221,12 @@ export default function Dossiers() {
               />
             </div>
             <div className="w-full">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Vente (Prix BL Client)</label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Coût Total Prévu (Estimation)</label>
               <div className="relative">
-                <input 
-                  type="number" 
-                  min="0"
-                  required
-                  placeholder="Montant facturé"
-                  className="w-full bg-slate-950 text-white border border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
-                  value={newDossier.prixContrat}
-                  onFocus={(e) => e.target.select()}
-                  onChange={e => setNewDossier({...newDossier, prixContrat: e.target.value === "" ? "" : parseInt(e.target.value)})}
-                />
-                <span className="absolute right-4 top-3.5 text-xs font-black text-slate-500 uppercase">{settings.devise}</span>
+                <div className="w-full bg-slate-900 text-blue-400 border border-slate-800 rounded-xl px-4 py-3 font-black text-xl flex items-center justify-between">
+                   <span>{totalPrevCost.toLocaleString()}</span>
+                   <span className="text-[10px] text-slate-500 uppercase">{settings.devise}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -239,11 +234,8 @@ export default function Dossiers() {
           <div className="w-full">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                <Box className="w-4 h-4 text-blue-500" /> Planification des coûts par unité
+                <Box className="w-4 h-4 text-blue-500" /> Planification des coûts (Dépenses prévues)
               </h4>
-              <div className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-blue-600/10 text-blue-400 rounded-lg border border-blue-500/20">
-                Coût total prévu : {newConteneurs.reduce((acc, c) => acc + (Number(c.prix) || 0), 0).toLocaleString()} {settings.devise}
-              </div>
             </div>
             <div className="bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-300 min-w-[900px]">
@@ -282,7 +274,7 @@ export default function Dossiers() {
                             const updated = [...newConteneurs];
                             const newType = e.target.value;
                             updated[idx].type = newType;
-                            updated[idx].prix = DEFAULT_PRICES[updated[idx].transport][newType];
+                            // updated[idx].prix = DEFAULT_PRICES[updated[idx].transport][newType]; // Supprimé pour garder à 0 par défaut
                             setNewConteneurs(updated);
                           }}
                         >
@@ -298,7 +290,7 @@ export default function Dossiers() {
                             const updated = [...newConteneurs];
                             const newTransport = e.target.value;
                             updated[idx].transport = newTransport;
-                            updated[idx].prix = DEFAULT_PRICES[newTransport][updated[idx].type];
+                            // updated[idx].prix = DEFAULT_PRICES[newTransport][updated[idx].type]; // Supprimé pour garder à 0 par défaut
                             setNewConteneurs(updated);
                           }}
                         >

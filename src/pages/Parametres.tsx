@@ -9,8 +9,7 @@ export default function Parametres() {
     tva: 18,
     devise: "FCFA",
     prix20: 150000,
-    prix40: 250000,
-    surcharge: 5000
+    prix40: 250000
   });
 
   const [partners, setPartners] = useState<any[]>([]);
@@ -170,7 +169,7 @@ export default function Parametres() {
             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter">Grille Tarifaire (Standard Logistique)</h3>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div>
               <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">Unité 20' Standard</label>
               <div className="relative">
@@ -193,18 +192,6 @@ export default function Parametres() {
                   onChange={e => setConfig({...config, prix40: parseInt(e.target.value) || 0})}
                 />
                 <span className="absolute right-6 top-4 font-black text-slate-400 text-xs">F</span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">Surcharge / Fuel Index</label>
-              <div className="relative">
-                <input 
-                  type="number" 
-                  className="w-full border border-slate-100 dark:border-slate-800 rounded-2xl pl-6 pr-14 py-4 bg-slate-50 dark:bg-slate-950 font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 tabular-nums"
-                  value={config.surcharge}
-                  onChange={e => setConfig({...config, surcharge: parseInt(e.target.value) || 0})}
-                />
-                <span className="absolute right-6 top-4 font-black text-slate-400 text-xs text-rose-500">+F</span>
               </div>
             </div>
           </div>

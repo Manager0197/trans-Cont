@@ -81,7 +81,6 @@ service cloud.firestore {
              data.devise is string && data.devise.size() <= 10 &&
              data.prix20 is number && data.prix20 >= 0 &&
              data.prix40 is number && data.prix40 >= 0 &&
-             (data.get('surcharge', 0) is number) &&
              (data.get('updatedAt', '') == '' || data.updatedAt is string);
     }
 

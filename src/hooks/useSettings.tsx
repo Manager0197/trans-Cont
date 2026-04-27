@@ -7,15 +7,13 @@ export interface SystemConfig {
   devise: string;
   prix20: number;
   prix40: number;
-  surcharge: number;
 }
 
 const DEFAULT_CONFIG: SystemConfig = {
   tva: 18,
   devise: "FCFA",
   prix20: 150000,
-  prix40: 250000,
-  surcharge: 5000
+  prix40: 250000
 };
 
 interface SettingsContextType {
