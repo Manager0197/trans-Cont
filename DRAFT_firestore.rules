@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Helpers ---
+
+    function isValidDossier(data) {
+      return data.numeroBL is string && data.numeroBL.size() <= 64 &&
+             data.nbConteneurs is int && data.nbConteneurs >= 0 &&
+             data.prixContrat is number && data.prixContrat >= 0 &&
+             data.statut in ['en_cours', 'cloture'] &&
+             data.createdAt is string; // Simplified for ISO string
+    }
+
+    function isValidConteneur(data) {
+      return data.dossierId is string && isValidId(data.dossierId) &&
+             data.numero is string && data.numero.size() <= 32 &&
+             data.type in ["20'", "40'", "Autre"] &&
+             data.createdAt is string;
+    }
+
+    function isValidChargement(data) {
+      return data.dossierId is string && isValidId(data.dossierId) &&
+             data.conteneurId is string && isValidId(data.conteneurId) &&
+             data.prixTotal is number && data.prixTotal >= 0 &&
+             data.avance is number && data.avance >= 0 &&
+             data.solde == data.prixTotal - data.avance &&
+             data.statutPaiement in ['paye', 'non_paye'] &&
+             data.createdAt is string;
+    }
+
+    // --- Collection Rules ---
+
+    match /dossiers/{dossierId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(dossierId) && isValidDossier(incoming());
+      allow update: if isSignedIn() && isValidId(dossierId) && isValidDossier(incoming()) && (
+        // Action: Update details (immutable check for demonstration, though not strictly required by prompt)
+        incoming().numeroBL == existing().numeroBL &&
+        incoming().createdAt == existing().createdAt
+      );
+      allow delete: if isSignedIn() && isValidId(dossierId);
+    }
+
+    match /conteneurs/{conteneurId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(conteneurId) && isValidConteneur(incoming()) &&
+                    exists(/databases/$(database)/documents/dossiers/$(incoming().dossierId));
+      allow update: if isSignedIn() && isValidId(conteneurId) && isValidConteneur(incoming()) &&
+                    incoming().dossierId == existing().dossierId;
+      allow delete: if isSignedIn() && isValidId(conteneurId);
+    }
+
+    match /chargements/{chargementId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(chargementId) && isValidChargement(incoming()) &&
+                    exists(/databases/$(database)/documents/dossiers/$(incoming().dossierId)) &&
+                    exists(/databases/$(database)/documents/conteneurs/$(incoming().conteneurId));
+      allow update: if isSignedIn() && isValidId(chargementId) && isValidChargement(incoming()) &&
+                    incoming().dossierId == existing().dossierId &&
+                    incoming().conteneurId == existing().conteneurId && (
+                      // Ensure solde is consistent if prix or avance changes
+                      incoming().solde == incoming().prixTotal - incoming().avance
+                    );
+      allow delete: if isSignedIn() && isValidId(chargementId);
+    }
+
+    match /camions/{camionId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(camionId);
+    }
+
+    match /partenaires/{partnerId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(partnerId);
+    }
+
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && docId == 'global';
+    }
+  }
+}

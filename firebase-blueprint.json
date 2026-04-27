@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "Dossier": {
+      "title": "Dossier BL",
+      "description": "Dossier de connaissement maritime regroupant plusieurs unités EVP.",
+      "type": "object",
+      "properties": {
+        "numeroBL": { "type": "string", "description": "Référence unique du BL" },
+        "nbConteneurs": { "type": "integer", "description": "Nombre total d'unités attendues" },
+        "prixContrat": { "type": "number", "description": "Montant total facturé au client" },
+        "statut": { "type": "string", "enum": ["en_cours", "cloture"], "description": "État opérationnel du dossier" },
+        "dateCreation": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["numeroBL", "nbConteneurs", "prixContrat", "statut", "createdAt"]
+    },
+    "Conteneur": {
+      "title": "Unité Conteneur",
+      "description": "Unité physique (EVP) liée à un dossier BL.",
+      "type": "object",
+      "properties": {
+        "dossierId": { "type": "string", "description": "Référence au dossier parent" },
+        "numero": { "type": "string", "description": "Matricule du conteneur (ex: MEDU...)" },
+        "type": { "type": "string", "enum": ["20'", "40'", "Autre"], "description": "Format de l'unité" },
+        "typeTransport": { "type": "string", "enum": ["interne", "externe"], "description": "Mode de traction" },
+        "statut": { "type": "string", "description": "État de l'unité" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dossierId", "numero", "type", "createdAt"]
+    },
+    "Chargement": {
+      "title": "Opération de Chargement",
+      "description": "Détails financiers et logistiques d'un transport d'unité.",
+      "type": "object",
+      "properties": {
+        "dossierId": { "type": "string", "description": "Référence au dossier" },
+        "conteneurId": { "type": "string", "description": "Référence à l'unité" },
+        "numeroConteneur": { "type": "string" },
+        "typeTransporteur": { "type": "string", "enum": ["interne", "externe"] },
+        "nomTransporteurExterne": { "type": "string" },
+        "camionId": { "type": "string" },
+        "prixTotal": { "type": "number", "description": "Coût du transport" },
+        "avance": { "type": "number", "description": "Montant déjà versé" },
+        "solde": { "type": "number", "description": "Montant restant dû" },
+        "statutPaiement": { "type": "string", "enum": ["paye", "non_paye"] },
+        "dateChargement": { "type": "string", "format": "date-time" },
+        "datePaiement": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dossierId", "conteneurId", "prixTotal", "avance", "solde", "statutPaiement", "createdAt"]
+    },
+    "Camion": {
+      "title": "Camion",
+      "description": "Véhicule de la flotte interne.",
+      "type": "object",
+      "properties": {
+        "numero": { "type": "string", "description": "Immatriculation" },
+        "chauffeur": { "type": "string", "description": "Nom du conducteur" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["numero", "chauffeur"]
+    },
+    "Partenaire": {
+      "title": "Partenaire",
+      "description": "Sous-traitant logistique externe.",
+      "type": "object",
+      "properties": {
+        "nom": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nom"]
+    },
+    "Settings": {
+      "title": "Paramètres Système",
+      "description": "Configuration globale de l'application.",
+      "type": "object",
+      "properties": {
+        "tva": { "type": "number" },
+        "devise": { "type": "string" },
+        "prix20": { "type": "number" },
+        "prix40": { "type": "number" },
+        "surcharge": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/dossiers/{dossierId}": { "schema": "Dossier", "description": "Dossiers BL" },
+    "/conteneurs/{conteneurId}": { "schema": "Conteneur", "description": "Unités physiques" },
+    "/chargements/{chargementId}": { "schema": "Chargement", "description": "Transactions de transport" },
+    "/camions/{camionId}": { "schema": "Camion", "description": "Flotte de camions" },
+    "/partenaires/{partnerId}": { "schema": "Partenaire", "description": "Entreprises partenaires" },
+    "/settings/global": { "schema": "Settings", "description": "Variables globales" }
+  }
+}

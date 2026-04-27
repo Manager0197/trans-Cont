@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.get('email_verified', false) == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidDossier(data) {
+      return data.numeroBL is string && data.numeroBL.size() <= 64 &&
+             data.nbConteneurs is int && data.nbConteneurs >= 0 &&
+             data.prixContrat is number && data.prixContrat >= 0 &&
+             data.statut in ['en_cours', 'cloture'] &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             data.updatedAt is string && data.updatedAt.size() <= 64 &&
+             data.dateCreation is string && data.dateCreation.size() <= 64;
+    }
+
+    function isValidConteneur(data) {
+      return data.dossierId is string && isValidId(data.dossierId) &&
+             data.numero is string && data.numero.size() <= 32 &&
+             data.type in ["20'", "40'", "Autre"] &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             (data.get('typeTransport', '') == '' || data.typeTransport is string) &&
+             (data.get('statut', '') == '' || data.statut is string);
+    }
+
+    function isValidChargement(data) {
+      return data.dossierId is string && isValidId(data.dossierId) &&
+             data.conteneurId is string && isValidId(data.conteneurId) &&
+             data.prixTotal is number && data.prixTotal >= 0 &&
+             data.avance is number && data.avance >= 0 &&
+             data.solde == data.prixTotal - data.avance &&
+             data.statutPaiement in ['paye', 'non_paye'] &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             data.updatedAt is string && data.updatedAt.size() <= 64 &&
+             data.dateChargement is string && data.dateChargement.size() <= 64 &&
+             data.typeTransporteur in ['interne', 'externe'] &&
+             data.numeroConteneur is string;
+    }
+
+    function isValidCamion(data) {
+      return data.numero is string && data.numero.size() <= 32 &&
+             data.chauffeur is string && data.chauffeur.size() <= 128 &&
+             data.statut in ['actif', 'inactif'] &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             (data.get('updatedAt', '') == '' || data.updatedAt is string);
+    }
+
+    function isValidPartenaire(data) {
+      return data.nom is string && data.nom.size() <= 128 &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             (data.get('updatedAt', '') == '' || data.updatedAt is string);
+    }
+
+    function isValidSettings(data) {
+      return data.tva is number && data.tva >= 0 && data.tva <= 100 &&
+             data.devise is string && data.devise.size() <= 10 &&
+             data.prix20 is number && data.prix20 >= 0 &&
+             data.prix40 is number && data.prix40 >= 0 &&
+             (data.get('surcharge', 0) is number) &&
+             (data.get('updatedAt', '') == '' || data.updatedAt is string);
+    }
+
+    // --- Collection Rules ---
+
+    match /dossiers/{dossierId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(dossierId) && isValidDossier(incoming());
+      allow update: if isSignedIn() && isValidId(dossierId) && isValidDossier(incoming()) && (
+        incoming().numeroBL == existing().numeroBL &&
+        incoming().createdAt == existing().createdAt
+      );
+      allow delete: if isSignedIn() && isValidId(dossierId);
+    }
+
+    match /conteneurs/{conteneurId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(conteneurId) && isValidConteneur(incoming()) &&
+                    (exists(/databases/$(database)/documents/dossiers/$(incoming().dossierId)) || 
+                     existsAfter(/databases/$(database)/documents/dossiers/$(incoming().dossierId)));
+      allow update: if isSignedIn() && isValidId(conteneurId) && isValidConteneur(incoming()) &&
+                    incoming().dossierId == existing().dossierId &&
+                    incoming().numero == existing().numero &&
+                    incoming().createdAt == existing().createdAt;
+      allow delete: if isSignedIn() && isValidId(conteneurId);
+    }
+
+    match /chargements/{chargementId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(chargementId) && isValidChargement(incoming()) &&
+                    (exists(/databases/$(database)/documents/dossiers/$(incoming().dossierId)) || 
+                     existsAfter(/databases/$(database)/documents/dossiers/$(incoming().dossierId))) &&
+                    (exists(/databases/$(database)/documents/conteneurs/$(incoming().conteneurId)) ||
+                     existsAfter(/databases/$(database)/documents/conteneurs/$(incoming().conteneurId)));
+      allow update: if isSignedIn() && isValidId(chargementId) && isValidChargement(incoming()) &&
+                    incoming().dossierId == existing().dossierId &&
+                    incoming().conteneurId == existing().conteneurId &&
+                    incoming().createdAt == existing().createdAt;
+      allow delete: if isSignedIn() && isValidId(chargementId);
+    }
+
+    match /camions/{camionId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(camionId) && isValidCamion(incoming());
+      allow update: if isSignedIn() && isValidId(camionId) && isValidCamion(incoming()) &&
+                    incoming().numero == existing().numero;
+      allow delete: if isSignedIn() && isValidId(camionId);
+    }
+
+    match /partenaires/{partnerId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(partnerId) && isValidPartenaire(incoming());
+      allow update: if isSignedIn() && isValidId(partnerId) && isValidPartenaire(incoming());
+      allow delete: if isSignedIn() && isValidId(partnerId);
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn() && docId == 'global' && isValidSettings(incoming());
+    }
+  }
+}
