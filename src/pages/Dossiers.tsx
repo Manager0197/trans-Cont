@@ -505,6 +505,10 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                 ) : (
                   <>
                     <h3 className="text-base sm:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter truncate max-w-[120px] sm:max-w-none">BL #{dossier.numeroBL}</h3>
+                    <div className="flex flex-col text-[8px] font-black text-slate-400 dark:text-slate-500 leading-tight">
+                       <span>{new Date(dossier.createdAt).toLocaleDateString('fr-FR')}</span>
+                       <span>À {new Date(dossier.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
                       className="p-1.5 text-blue-500 hover:bg-blue-500 hover:text-white rounded-lg transition-all"

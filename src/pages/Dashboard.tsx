@@ -211,9 +211,16 @@ export default function Dashboard() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                        {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('fr-FR') : '-'}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-900 dark:text-white tabular-nums">
+                          {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('fr-FR') : '-'}
+                        </span>
+                        {doc.createdAt && (
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                            à {new Date(doc.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-center">
                       <div className="inline-flex items-center justify-center w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl font-black text-slate-900 dark:text-white">

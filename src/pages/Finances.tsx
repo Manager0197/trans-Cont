@@ -132,12 +132,17 @@ function ChargementFinanceCard({ chargement, onPayRequest }: { chargement: any; 
   return (
     <div className={`overflow-hidden rounded-[2.5rem] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/40 dark:shadow-none transition-all duration-300 ${isPaid ? 'opacity-70' : 'hover:border-blue-500/50'} ${isOverdue ? 'ring-2 ring-rose-500 shadow-rose-500/20' : ''}`}>
       <div className="px-8 py-5 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center transition-colors">
-         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">
             <div className={`w-3 h-3 rounded-full shadow-[0_0_8px] transition-all ${isPaid ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-amber-500 shadow-amber-500/50 animate-pulse'}`} />
-            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">
-              Cas d'Usage — Dossier ID: {chargement.dossierId?.slice(-6)} • Vecteur: {isInternal ? 'Flotte Interne' : 'Sous-traitance Prestataire'}
-            </p>
-         </div>
+            <div className="flex flex-col">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">
+                Cas d'Usage — Dossier ID: {chargement.dossierId?.slice(-6)} • Vecteur: {isInternal ? 'Flotte Interne' : 'Sous-traitance Prestataire'}
+              </p>
+              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">
+                Enregistré le {new Date(chargement.createdAt).toLocaleDateString('fr-FR')} à {new Date(chargement.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          </div>
          {isOverdue && (
            <div className="flex items-center gap-2 text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-500/10 px-4 py-1.5 rounded-full border border-rose-500/20 animate-bounce">
               <AlertTriangle className="w-4 h-4" /> Alerte : Échéance dépassée

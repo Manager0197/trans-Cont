@@ -137,7 +137,13 @@ export default function Conteneurs() {
                           <Box className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-black text-slate-900 dark:text-white uppercase tracking-tighter text-lg">{c.numero || "NP-ALPHA"}</p>
+                          <div className="flex items-center gap-2">
+                             <p className="font-black text-slate-900 dark:text-white uppercase tracking-tighter text-lg">{c.numero || "NP-ALPHA"}</p>
+                             <div className="flex flex-col text-[8px] font-black leading-none text-slate-400 uppercase tracking-tighter">
+                               <span>DÉPART : {new Date(c.createdAt).toLocaleDateString('fr-FR')}</span>
+                               <span>À : {new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                             </div>
+                          </div>
                           <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">{c.type} Pieds</p>
                         </div>
                       </div>
