@@ -142,7 +142,10 @@ export default function Dashboard() {
 
       <div className="bg-white dark:bg-slate-900 rounded-[2rem] lg:rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 p-4 sm:p-6 lg:p-8">
         <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center mb-8">
-          <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Répertoire des Dossiers</h2>
+          <div>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Répertoire des Dossiers</h2>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Point de situation sur la période sélectionnée</p>
+          </div>
           
           {/* Filters */}
           <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-4 w-full lg:w-auto text-sm font-medium">
@@ -150,37 +153,47 @@ export default function Dashboard() {
               <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
               <input 
                 type="text" 
-                placeholder="N° de BL..." 
-                className="bg-transparent border-none outline-none text-slate-900 dark:text-white font-bold w-full xl:w-32"
+                placeholder="N° de BL / Conteneur..." 
+                className="bg-transparent border-none outline-none text-slate-900 dark:text-white font-bold w-full xl:w-48 text-xs uppercase"
                 value={searchTxt}
                 onChange={e => setSearchTxt(e.target.value)}
               />
             </div>
+            
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto">
               <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2">
                 <Calendar className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
-                <input type="date" value={filterDateDebut} onChange={e => setFilterDateDebut(e.target.value)} className="bg-transparent text-slate-900 dark:text-white outline-none w-full" />
+                <input 
+                  type="date" 
+                  value={filterDateDebut} 
+                  onChange={e => setFilterDateDebut(e.target.value)} 
+                  className="bg-transparent text-slate-900 dark:text-white outline-none w-full text-xs font-bold" 
+                />
               </div>
-              <span className="hidden sm:block text-slate-400 font-bold px-1">-</span>
-              <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 relative">
-                 <input type="date" value={filterDateFin} onChange={e => setFilterDateFin(e.target.value)} className="bg-transparent text-slate-900 dark:text-white outline-none w-full" />
+              <span className="hidden sm:block text-slate-300 font-black px-1">AU</span>
+              <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2">
+                 <input 
+                   type="date" 
+                   value={filterDateFin} 
+                   onChange={e => setFilterDateFin(e.target.value)} 
+                   className="bg-transparent text-slate-900 dark:text-white outline-none w-full text-xs font-bold" 
+                 />
               </div>
             </div>
+
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto">
-              <div className="hidden sm:flex items-center justify-center p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                 <Filter className="w-4 h-4 text-slate-400" />
-              </div>
-              <select value={filterTransport} onChange={e => setFilterTransport(e.target.value)} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto">
-                <option value="tous">Tous Transports</option>
-                <option value="interne">Inclus Interne</option>
-                <option value="externe">Inclus Externe</option>
+              <select value={filterTransport} onChange={e => setFilterTransport(e.target.value)} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 font-black text-[10px] uppercase tracking-widest text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto">
+                <option value="tous">🌍 Tous Flux</option>
+                <option value="interne">🚛 Flotte Interne</option>
+                <option value="externe">🤝 Flotte Externe</option>
               </select>
-              <select value={filterPaiement} onChange={e => setFilterPaiement(e.target.value)} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto">
-                <option value="tous">Tous Paiements</option>
-                <option value="paye">Soldé (Payé)</option>
-                <option value="non_paye">Non Payé</option>
-                <option value="en_attente">Paiement Partiel</option>
-              </select>
+              
+              <button 
+                onClick={() => { setFilterDateDebut(''); setFilterDateFin(''); setFilterTransport('tous'); setFilterPaiement('tous'); setSearchTxt(''); }}
+                className="px-4 py-2 text-slate-400 hover:text-rose-500 text-[10px] font-black uppercase tracking-widest transition-all"
+              >
+                Reset
+              </button>
             </div>
           </div>
         </div>

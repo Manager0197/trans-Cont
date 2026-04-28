@@ -65,9 +65,19 @@ service cloud.firestore {
     function isValidCamion(data) {
       return data.numero is string && data.numero.size() <= 32 &&
              data.chauffeur is string && data.chauffeur.size() <= 128 &&
-             data.statut in ['actif', 'inactif'] &&
+             data.statut in ['actif', 'inactif', 'maintenance', 'panne'] &&
              data.createdAt is string && data.createdAt.size() <= 64 &&
+             data.type in ['interne', 'externe'] &&
              (data.get('updatedAt', '') == '' || data.updatedAt is string);
+    }
+
+    function isValidMaintenance(data) {
+      return data.camionId is string && isValidId(data.camionId) &&
+             data.type is string && data.type.size() <= 128 &&
+             data.cout is number && data.cout >= 0 &&
+             data.dateIntervention is string && data.dateIntervention.size() <= 64 &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             (data.get('description', '') == '' || data.description is string);
     }
 
     function isValidPartenaire(data) {
@@ -135,6 +145,14 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidId(partnerId) && isValidPartenaire(incoming());
       allow update: if isSignedIn() && isValidId(partnerId) && isValidPartenaire(incoming());
       allow delete: if isSignedIn() && isValidId(partnerId);
+    }
+
+    match /maintenances/{maintenanceId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(maintenanceId) && isValidMaintenance(incoming()) &&
+                    exists(/databases/$(database)/documents/camions/$(incoming().camionId));
+      allow update: if isSignedIn() && isValidId(maintenanceId) && isValidMaintenance(incoming());
+      allow delete: if isSignedIn() && isValidId(maintenanceId);
     }
 
     match /settings/{docId} {

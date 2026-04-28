@@ -52,15 +52,31 @@
       "required": ["dossierId", "conteneurId", "prixTotal", "avance", "solde", "statutPaiement", "createdAt"]
     },
     "Camion": {
-      "title": "Camion",
-      "description": "Véhicule de la flotte interne.",
+      "title": "Unité de Flotte",
+      "description": "Véhicule de la flotte interne ou partenaire externe.",
       "type": "object",
       "properties": {
-        "numero": { "type": "string", "description": "Immatriculation" },
-        "chauffeur": { "type": "string", "description": "Nom du conducteur" },
+        "numero": { "type": "string", "description": "Immatriculation ou Nom Transporteur" },
+        "chauffeur": { "type": "string", "description": "Conducteur ou Contact" },
+        "type": { "type": "string", "enum": ["interne", "externe"] },
+        "statut": { "type": "string", "enum": ["actif", "maintenance", "panne", "inactif"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["numero", "chauffeur"]
+      "required": ["numero", "chauffeur", "type"]
+    },
+    "Maintenance": {
+      "title": "Rapport de Maintenance",
+      "description": "Suivi des dépenses et pannes par véhicule.",
+      "type": "object",
+      "properties": {
+        "camionId": { "type": "string" },
+        "type": { "type": "string", "description": "Ex: Panne, Vidange, Pneus, Pièces" },
+        "description": { "type": "string", "description": "Détails de l'intervention" },
+        "cout": { "type": "number", "description": "Montant de la dépense" },
+        "dateIntervention": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["camionId", "type", "cout", "dateIntervention", "createdAt"]
     },
     "Partenaire": {
       "title": "Partenaire",
@@ -91,6 +107,7 @@
     "/chargements/{chargementId}": { "schema": "Chargement", "description": "Transactions de transport" },
     "/camions/{camionId}": { "schema": "Camion", "description": "Flotte de camions" },
     "/partenaires/{partnerId}": { "schema": "Partenaire", "description": "Entreprises partenaires" },
+    "/maintenances/{maintenanceId}": { "schema": "Maintenance", "description": "Journal de maintenance des véhicules" },
     "/settings/global": { "schema": "Settings", "description": "Variables globales" }
   }
 }

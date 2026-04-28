@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import { Search, Calendar, Filter, Truck, FileText, Landmark, BarChart3, TrendingUp, AlertCircle, ChevronRight } from "lucide-react";
 
@@ -125,6 +125,28 @@ export default function Rapports() {
     { name: "Interne", value: stats.interne },
     { name: "Externe", value: stats.externe }
   ];
+
+  const lineData = useMemo(() => {
+    const { filteredC } = filteredData;
+    const dailyMap: Record<string, number> = {};
+    
+    filteredC.forEach(ch => {
+      if (ch.dateChargement) {
+        // Date format handling (assuming ISO string or YYYY-MM-DD)
+        const dateStr = new Date(ch.dateChargement).toISOString().split('T')[0];
+        dailyMap[dateStr] = (dailyMap[dateStr] || 0) + (Number(ch.prixTotal) || 0);
+      }
+    });
+
+    return Object.entries(dailyMap)
+      .map(([date, amount]) => ({ 
+        date: new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+        rawDate: date,
+        amount 
+      }))
+      .sort((a, b) => a.rawDate.localeCompare(b.rawDate));
+  }, [filteredData]);
+
   const COLORS = ['#3b82f6', '#f59e0b'];
 
   return (
@@ -216,6 +238,67 @@ export default function Rapports() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Graphique d'Évolution Financière */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+            <div className="flex items-center gap-4">
+               <div className="p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl">
+                 <BarChart3 className="w-6 h-6" />
+               </div>
+               <div>
+                 <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Évolution des Flux Financiers</h3>
+                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Chiffre d'affaires brut par jour de chargement</p>
+               </div>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total période</p>
+               <p className="text-lg font-black text-slate-900 dark:text-white">
+                 {(lineData.reduce((sum, item) => sum + item.amount, 0)).toLocaleString()} <span className="text-[10px] text-slate-400">FCFA</span>
+               </p>
+            </div>
+          </div>
+          
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={lineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.1} />
+                <XAxis 
+                  dataKey="date" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                  tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#0f172a', 
+                    border: 'none', 
+                    borderRadius: '16px',
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'
+                  }}
+                  itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}
+                  labelStyle={{ color: '#64748b', fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 900 }}
+                  formatter={(value: number) => [`${value.toLocaleString()} FCFA`, 'CA Brut']}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="amount" 
+                  stroke="#3b82f6" 
+                  strokeWidth={4} 
+                  dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 6, strokeWidth: 0.5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
         <Quadrant 
           title="Performances Opérationnelles" 
           icon={<FileText className="w-5 h-5 text-blue-500" />}

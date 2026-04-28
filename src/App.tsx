@@ -36,6 +36,7 @@ function Sidebar({ isOpen, setIsOpen, logOut, user, theme, toggleTheme }: { isOp
   
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/operations", label: "Portail Opérations", icon: ShieldCheck },
     { path: "/dossiers", label: "Dossiers BL", icon: FolderOpen },
     { path: "/conteneurs", label: "Inventaire EVP", icon: Box },
     { path: "/flotte", label: "Gestion Flotte", icon: Truck },
@@ -50,7 +51,7 @@ function Sidebar({ isOpen, setIsOpen, logOut, user, theme, toggleTheme }: { isOp
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsOpen(false)} />
       )}
       <div className={cn(
-        "fixed md:static inset-y-0 left-0 z-50 w-72 bg-white dark:bg-[#0c111d] text-slate-900 dark:text-white min-h-screen flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-100 dark:border-slate-800",
+        "fixed top-0 left-0 z-50 w-72 bg-white dark:bg-[#0c111d] text-slate-900 dark:text-white h-screen flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-100 dark:border-slate-800",
         isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
         <div className="p-8 pb-10 flex items-center justify-between">
@@ -287,7 +288,7 @@ function AppContent() {
     <Router>
       <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300 font-sans tracking-tight">
         <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} logOut={logOut} user={user} theme={theme} toggleTheme={toggleTheme} />
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 md:pl-72">
           <header className="md:hidden bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 p-4 flex items-center justify-between sticky top-0 z-30 transition-colors">
             <Logo />
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 -mr-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-colors active:scale-90">
@@ -297,6 +298,7 @@ function AppContent() {
           <main className="flex-1 p-4 sm:p-10 overflow-auto pb-24 md:pb-10 custom-scrollbar">
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/operations" element={<PortailOperations />} />
               <Route path="/dossiers" element={<Dossiers />} />
               <Route path="/conteneurs" element={<Conteneurs />} />
               <Route path="/flotte" element={<Camions />} />

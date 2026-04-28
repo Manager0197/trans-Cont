@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Truck, Plus, Check, X as XIcon, Trash2, Edit2, LayoutDashboard, DollarSign, AlertCircle, TrendingUp } from "lucide-react";
+import { Truck, Plus, Check, X as XIcon, Trash2, Edit2, LayoutDashboard, DollarSign, AlertCircle, TrendingUp, Wrench, History, Calendar } from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import { useSettings } from "../hooks/useSettings";
 import ConfirmModal from "../components/ConfirmModal";
@@ -11,34 +11,40 @@ export default function Camions() {
   const [camions, setCamions] = useState<any[]>([]);
   const [chargements, setChargements] = useState<any[]>([]);
   const [dossiers, setDossiers] = useState<any[]>([]);
+  const [maintenances, setMaintenances] = useState<any[]>([]);
+  
   const [showNew, setShowNew] = useState(false);
-  const [newCamion, setNewCamion] = useState({ numero: "", chauffeur: "" });
+  const [newCamion, setNewCamion] = useState({ numero: "", chauffeur: "", type: "interne" });
+  
   const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ numero: "", chauffeur: "" });
+  const [editForm, setEditForm] = useState({ numero: "", chauffeur: "", type: "interne" });
+  
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [assigningLoading, setAssigningLoading] = useState<string | null>(null);
 
+  // Maintenance state
+  const [showMaintModal, setShowMaintModal] = useState<string | null>(null);
+  const [newMaint, setNewMaint] = useState({ type: "", description: "", cout: "", dateIntervention: new Date().toISOString().split('T')[0] });
+  const [viewLogsId, setViewLogsId] = useState<string | null>(null);
+
   useEffect(() => {
-    const q = query(collection(db, "camions"), orderBy("createdAt", "desc"));
-    const unsubC = onSnapshot(q, (snap) => {
+    const unsubC = onSnapshot(query(collection(db, "camions"), orderBy("createdAt", "desc")), (snap) => {
       setCamions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "camions");
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, "camions"));
 
     const unsubCh = onSnapshot(collection(db, "chargements"), (snap) => {
       setChargements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "chargements");
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, "chargements"));
 
     const unsubD = onSnapshot(collection(db, "dossiers"), (snap) => {
       setDossiers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "dossiers");
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, "dossiers"));
 
-    return () => { unsubC(); unsubCh(); unsubD(); };
+    const unsubM = onSnapshot(query(collection(db, "maintenances"), orderBy("dateIntervention", "desc")), (snap) => {
+      setMaintenances(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, "maintenances"));
+
+    return () => { unsubC(); unsubCh(); unsubD(); unsubM(); };
   }, []);
 
   const pendingMissions = chargements.filter(ch => ch.typeTransporteur === 'interne' && !ch.camionId);
@@ -68,7 +74,7 @@ export default function Camions() {
         createdAt: new Date().toISOString()
       });
       setShowNew(false);
-      setNewCamion({ numero: "", chauffeur: "" });
+      setNewCamion({ numero: "", chauffeur: "", type: "interne" });
     } catch (err) { handleFirestoreError(err, OperationType.CREATE, "camions"); }
   };
 
@@ -88,10 +94,10 @@ export default function Camions() {
     } catch (err) { handleFirestoreError(err, OperationType.DELETE, `camions/${deleteId}`); }
   };
 
-  const toggleStatut = async (id: string, current: string) => {
+  const toggleStatut = async (id: string, newVal: string) => {
     try {
-      await updateDoc(doc(db, "camions", id), {
-        statut: current === 'actif' ? 'inactif' : 'actif',
+      await updateDoc(doc(db, "camions", id), { 
+        statut: newVal,
         updatedAt: new Date().toISOString()
       });
     } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `camions/${id}`); }
@@ -100,15 +106,35 @@ export default function Camions() {
   const getStats = (camionId: string) => {
     const now = new Date();
     const filtered = chargements.filter(ch => ch.camionId === camionId);
+    const maintFiltered = maintenances.filter(m => m.camionId === camionId);
+
     const cumulativeVolume = filtered.length;
     const monthlyActivity = filtered.filter(ch => {
       if (!ch.dateChargement) return false;
       const d = new Date(ch.dateChargement);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
-    const provisions = filtered.reduce((sum, ch) => sum + (Number(ch.avance) || 0), 0);
+    
     const ca = filtered.reduce((sum, ch) => sum + (Number(ch.prixTotal) || 0), 0);
-    return { cumulativeVolume, monthlyActivity, provisions, ca };
+    const totalMaint = maintFiltered.reduce((sum, m) => sum + (Number(m.cout) || 0), 0);
+    const profitNet = ca - totalMaint;
+    
+    return { cumulativeVolume, monthlyActivity, ca, totalMaint, profitNet };
+  };
+
+  const handleCreateMaintenance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showMaintModal || !newMaint.cout || !newMaint.type) return;
+    try {
+      await addDoc(collection(db, "maintenances"), {
+        ...newMaint,
+        camionId: showMaintModal,
+        cout: Number(newMaint.cout),
+        createdAt: new Date().toISOString()
+      });
+      setShowMaintModal(null);
+      setNewMaint({ type: "", description: "", cout: "", dateIntervention: new Date().toISOString().split('T')[0] });
+    } catch (err) { handleFirestoreError(err, OperationType.CREATE, "maintenances"); }
   };
 
   return (
@@ -120,12 +146,20 @@ export default function Camions() {
           </h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight mt-1">Pilotage des actifs roulants, assignation chauffeurs et revue de performance</p>
         </div>
-        <button 
-          onClick={() => setShowNew(true)}
-          className="bg-blue-600 text-white px-6 sm:px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2 w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4" /> Ajouter un véhicule
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => window.print()}
+            className="w-full sm:w-auto bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold transition-all active:scale-95 no-print"
+          >
+            Imprimer l'État
+          </button>
+          <button 
+            onClick={() => setShowNew(true)}
+            className="w-full sm:w-auto bg-blue-600 text-white px-6 sm:px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> Ajouter un véhicule
+          </button>
+        </div>
       </div>
 
       {/* Missions Internes en Attente */}
@@ -178,9 +212,20 @@ export default function Camions() {
       )}
 
       {showNew && (
-        <form onSubmit={handleCreate} className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2rem] lg:rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-4">
+        <form onSubmit={handleCreate} className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2rem] lg:rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-4 gap-6 animate-in slide-in-from-top-4">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Immatriculation</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type Flotte</label>
+            <select 
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+              value={newCamion.type}
+              onChange={e => setNewCamion({...newCamion, type: e.target.value})}
+            >
+              <option value="interne">🚛 Flotte Interne</option>
+              <option value="externe">🤝 Partenaire Externe</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Immatriculation / Nom</label>
             <input 
               placeholder="Ex: AA-123-BB" 
               required 
@@ -190,7 +235,7 @@ export default function Camions() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Chauffeur</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Chauffeur / Contact</label>
             <input 
               placeholder="Nom du chauffeur" 
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
@@ -218,6 +263,14 @@ export default function Camions() {
                   <div className="flex-1 w-full">
                     {isEditing === c.id ? (
                       <form onSubmit={e => handleEdit(e, c.id)} className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                        <select 
+                          className="bg-slate-100 dark:bg-slate-800 border rounded-xl px-3 py-2 text-xs font-black uppercase"
+                          value={editForm.type}
+                          onChange={e => setEditForm({...editForm, type: e.target.value})}
+                        >
+                          <option value="interne">Interne</option>
+                          <option value="externe">Externe</option>
+                        </select>
                         <input 
                           className="bg-slate-100 dark:bg-slate-800 border rounded-xl px-3 py-2 font-black text-xl text-slate-900 dark:text-white" 
                           value={editForm.numero} 
@@ -230,8 +283,11 @@ export default function Camions() {
                       </form>
                     ) : (
                       <div className="flex items-center justify-between sm:justify-start gap-3 w-full">
+                        <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${c.type === 'interne' ? 'bg-blue-500 text-white' : 'bg-amber-500 text-slate-900'}`}>
+                          {c.type === 'interne' ? 'Interne' : 'Partenaire'}
+                        </div>
                         <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{c.numero}</h3>
-                        <button onClick={() => { setIsEditing(c.id); setEditForm({ numero: c.numero, chauffeur: c.chauffeur }); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors shrink-0"><Edit2 className="w-5 h-5" /></button>
+                        <button onClick={() => { setIsEditing(c.id); setEditForm({ numero: c.numero, chauffeur: c.chauffeur, type: c.type || 'interne' }); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors shrink-0"><Edit2 className="w-5 h-5" /></button>
                       </div>
                     )}
                     {isEditing === c.id ? (
@@ -249,19 +305,89 @@ export default function Camions() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4 self-end sm:self-auto w-full sm:w-auto justify-end">
-                  <button onClick={() => setDeleteId(c.id)} className="p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-xl transition-all"><Trash2 className="w-5 h-5" /></button>
-                  <button onClick={() => toggleStatut(c.id, c.statut)} className={`flex-1 sm:flex-none px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${c.statut === 'actif' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-                    MODE : {c.statut}
-                  </button>
+                  <button onClick={() => setDeleteId(c.id)} className="p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-xl transition-all no-print"><Trash2 className="w-5 h-5" /></button>
+                  <div className="flex flex-col gap-1 w-full sm:w-auto min-w-[150px]">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center mb-1">État Opérationnel</p>
+                    <select 
+                      value={c.statut}
+                      onChange={(e) => toggleStatut(c.id, e.target.value)}
+                      className={`w-full px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest outline-none border-2 transition-all cursor-pointer ${
+                        c.statut === 'actif' ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/20' : 
+                        c.statut === 'panne' ? 'bg-rose-600 border-rose-500 text-white shadow-lg shadow-rose-600/20' :
+                        c.statut === 'maintenance' ? 'bg-amber-500 border-amber-400 text-slate-900 shadow-lg shadow-amber-500/20' :
+                        'bg-slate-200 border-slate-300 text-slate-500'
+                      }`}
+                    >
+                      <option value="actif">🚛 En Circulation</option>
+                      <option value="panne" className="bg-white text-rose-600">⚠ En Panne</option>
+                      <option value="maintenance" className="bg-white text-amber-600">🛠 Maintenance</option>
+                      <option value="inactif" className="bg-white text-slate-600">🚫 Hors Service</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               
               <div className="grid grid-cols-2 lg:grid-cols-4">
                  <StatBox label="Missions" value={stats.cumulativeVolume} icon={LayoutDashboard} />
-                 <StatBox label="CA Généré" value={`${(stats.ca/1000).toFixed(1)}K`} sub={settings.devise} highlight icon={TrendingUp} />
-                 <StatBox label="Activités (30j)" value={stats.monthlyActivity} icon={AlertCircle} />
-                 <StatBox label="Total Avances" value={`${(stats.provisions/1000).toFixed(1)}K`} sub={settings.devise} icon={DollarSign} />
+                 <StatBox label="CA Brut" value={`${(stats.ca/1000).toFixed(1)}K`} sub={settings.devise} highlight icon={TrendingUp} />
+                 <StatBox label="Maintenance" value={`${(stats.totalMaint/1000).toFixed(1)}K`} sub={settings.devise} icon={Wrench} variant="danger" />
+                 <StatBox label="Profit Net" value={`${(stats.profitNet/1000).toFixed(1)}K`} sub={settings.devise} icon={DollarSign} variant="success" />
               </div>
+              
+              <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-950/30 flex items-center justify-between gap-4">
+                 <div className="flex gap-2">
+                   <button 
+                     onClick={() => setShowMaintModal(c.id)}
+                     className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all"
+                   >
+                     <Plus className="w-3.5 h-3.5" /> Enregistrer Entretien
+                   </button>
+                   <button 
+                     onClick={() => setViewLogsId(viewLogsId === c.id ? null : c.id)}
+                     className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewLogsId === c.id ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                   >
+                     <History className="w-3.5 h-3.5" /> {viewLogsId === c.id ? 'Masquer Historique' : 'Consulter Historique'}
+                   </button>
+                 </div>
+              </div>
+
+              {viewLogsId === c.id && (
+                <div className="p-8 bg-white dark:bg-slate-900 border-t border-slate-50 dark:border-slate-800 animate-in slide-in-from-top-4">
+                   <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                     <History className="w-4 h-4" /> Journal des interventionstechniques
+                   </h4>
+                   <div className="space-y-3">
+                     {maintenances.filter(m => m.camionId === c.id).map(m => (
+                       <div key={m.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 hover:border-blue-500/30 transition-all">
+                          <div className="flex items-center gap-4">
+                             <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                               <Wrench className="w-4 h-4 text-blue-500" />
+                             </div>
+                             <div>
+                               <p className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">{m.type}</p>
+                               <p className="text-[10px] text-slate-500 font-medium">{m.description || "Aucun détail saisi."}</p>
+                             </div>
+                          </div>
+                          <div className="flex items-center gap-6 mt-4 sm:mt-0">
+                             <div className="text-right">
+                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Date</p>
+                               <p className="font-bold text-xs">{new Date(m.dateIntervention).toLocaleDateString('fr-FR')}</p>
+                             </div>
+                             <div className="text-right px-4 py-1.5 bg-rose-500/10 rounded-lg">
+                               <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest leading-none mb-1">Coût</p>
+                               <p className="font-black text-rose-500 tabular-nums">{Number(m.cout).toLocaleString()} {settings.devise}</p>
+                             </div>
+                          </div>
+                       </div>
+                     ))}
+                     {maintenances.filter(m => m.camionId === c.id).length === 0 && (
+                       <div className="py-10 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest italic">
+                         Aucune intervention enregistrée pour ce véhicule
+                       </div>
+                     )}
+                   </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -272,6 +398,86 @@ export default function Camions() {
           </div>
         )}
       </div>
+
+      {/* Maintenance Entry Modal */}
+      {showMaintModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowMaintModal(null)} />
+          <div className="relative bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in zoom-in-95">
+             <form onSubmit={handleCreateMaintenance}>
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
+                  <div>
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1">Entretien Technique</p>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Log Maintenance</h3>
+                  </div>
+                  <button type="button" onClick={() => setShowMaintModal(null)} className="p-3 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all">
+                    <XIcon className="w-6 h-6" />
+                  </button>
+                </div>
+                
+                <div className="p-8 space-y-6">
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2">Type d'intervention <Wrench className="w-3 h-3" /></label>
+                        <select 
+                          required
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          value={newMaint.type}
+                          onChange={e => setNewMaint({...newMaint, type: e.target.value})}
+                        >
+                          <option value="">Sélectionner...</option>
+                          <option value="Panne Moteur">Panne Moteur</option>
+                          <option value="Pneumatiques">Pneumatiques</option>
+                          <option value="Vidange / Filtres">Vidange / Filtres</option>
+                          <option value="Pièces de rechange">Pièces de rechange</option>
+                          <option value="Carburant">Carburant</option>
+                          <option value="Autre">Autre</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2">Coût ({settings.devise}) <DollarSign className="w-3 h-3" /></label>
+                        <input 
+                          type="number"
+                          required
+                          placeholder="Ex: 50000"
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          value={newMaint.cout}
+                          onChange={e => setNewMaint({...newMaint, cout: e.target.value})}
+                        />
+                      </div>
+                   </div>
+
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2">Date de l'intervention <Calendar className="w-3 h-3" /></label>
+                      <input 
+                        type="date"
+                        required
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newMaint.dateIntervention}
+                        onChange={e => setNewMaint({...newMaint, dateIntervention: e.target.value})}
+                      />
+                   </div>
+
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Description / Observations</label>
+                      <textarea 
+                        rows={3}
+                        placeholder="Détails sur les pièces changées ou la nature de la panne..."
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        value={newMaint.description}
+                        onChange={e => setNewMaint({...newMaint, description: e.target.value})}
+                      />
+                   </div>
+                </div>
+
+                <div className="p-8 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-50 dark:border-slate-800 flex gap-4">
+                   <button type="submit" className="flex-1 bg-blue-600 text-white font-black uppercase text-[10px] tracking-[0.2em] py-4 rounded-xl shadow-lg shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all">Enregistrer l'Entretien</button>
+                   <button type="button" onClick={() => setShowMaintModal(null)} className="px-6 py-4 text-slate-400 font-black uppercase text-[10px]">Annuler</button>
+                </div>
+             </form>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal 
         isOpen={!!deleteId} 
@@ -285,15 +491,22 @@ export default function Camions() {
   );
 }
 
-function StatBox({ label, value, sub, highlight = false, icon: Icon }: any) {
+function StatBox({ label, value, sub, highlight = false, icon: Icon, variant }: any) {
+  const getColors = () => {
+    if (variant === 'danger') return 'text-rose-500';
+    if (variant === 'success') return 'text-emerald-500';
+    if (highlight) return 'text-blue-500';
+    return 'text-slate-900 dark:text-white';
+  };
+
   return (
     <div className="p-8 border-r last:border-r-0 border-slate-50 dark:border-slate-800/50 flex flex-col items-center text-center group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
-       <div className="mb-4 text-slate-300 dark:text-slate-700 group-hover:text-blue-500 transition-colors">
+       <div className={`mb-4 transition-colors ${variant === 'danger' ? 'text-rose-300' : variant === 'success' ? 'text-emerald-300' : 'text-slate-300 dark:text-slate-700'} group-hover:text-blue-500`}>
          <Icon className="w-5 h-5" />
        </div>
        <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] mb-2">{label}</p>
        <div className="flex items-baseline gap-1">
-         <p className={`text-3xl font-black tabular-nums transition-transform group-hover:scale-110 ${highlight ? 'text-blue-500' : 'text-slate-900 dark:text-white'}`}>{value}</p>
+         <p className={`text-3xl font-black tabular-nums transition-transform group-hover:scale-110 ${getColors()}`}>{value}</p>
          {sub && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sub}</span>}
        </div>
     </div>
