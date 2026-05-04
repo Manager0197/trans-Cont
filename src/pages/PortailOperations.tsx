@@ -839,10 +839,9 @@ export default function PortailOperations() {
                   .filter(
                     (c) =>
                       c.statut === "actif" &&
-                      c.type ===
-                        (assigningMission.typeTransporteur === "interne"
-                          ? "interne"
-                          : "externe"),
+                      (assigningMission.typeTransporteur === "interne" 
+                        ? c.type !== "externe" 
+                        : c.type === "externe"),
                   )
                   .map((c) => (
                     <button
@@ -869,17 +868,64 @@ export default function PortailOperations() {
                     </button>
                   ))}
 
+                {/* Formulaire d'ajout rapide directe */}
+                <div className="mt-4 p-5 bg-blue-50/50 dark:bg-blue-900/10 rounded-[1.5rem] border-2 border-dashed border-blue-200 dark:border-blue-800/50">
+                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-3">
+                    + Ajout rapide (Si non listé)
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input 
+                      type="text" 
+                      placeholder="Immatriculation" 
+                      id="quick_numero"
+                      className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Chauffeur" 
+                      id="quick_chauffeur"
+                      className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button 
+                      onClick={async (e) => {
+                        const target = e.currentTarget;
+                        const num = (document.getElementById('quick_numero') as HTMLInputElement).value;
+                        const chauf = (document.getElementById('quick_chauffeur') as HTMLInputElement).value;
+                        if (!num) return;
+                        
+                        target.disabled = true;
+                        try {
+                          const docRef = await addDoc(collection(db, "camions"), {
+                            numero: num.trim().toUpperCase(),
+                            chauffeur: chauf.trim() || "Chauffeur externe",
+                            type: assigningMission.typeTransporteur,
+                            statut: "actif",
+                            createdAt: new Date().toISOString()
+                          });
+                          handleAssignCamion(docRef.id);
+                        } catch (err) {
+                          console.error(err);
+                        } finally {
+                          target.disabled = false;
+                        }
+                      }}
+                      className="sm:col-span-2 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-[9px] tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                    >
+                      Enregistrer & Assigner
+                    </button>
+                  </div>
+                </div>
+
                 {camions.filter(
                   (c) =>
                     c.statut === "actif" &&
-                    c.type ===
-                      (assigningMission.typeTransporteur === "interne"
-                        ? "interne"
-                        : "externe"),
+                    (assigningMission.typeTransporteur === "interne"
+                      ? c.type !== "externe"
+                      : c.type === "externe"),
                 ).length === 0 && (
-                  <div className="text-center py-6 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-dotted border-slate-200 dark:border-slate-800">
-                    <p className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">
-                      Aucune unité active disponible
+                  <div className="text-center py-6">
+                    <p className="text-slate-400 font-bold uppercase text-[9px] tracking-widest italic">
+                      Aucune unité pré-enregistrée
                     </p>
                   </div>
                 )}
