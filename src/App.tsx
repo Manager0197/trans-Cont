@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, FolderOpen, Truck, DollarSign, FileBarChart, Menu, X, LogOut, Box, Moon, Sun, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, FolderOpen, Truck, DollarSign, FileBarChart, Menu, X, LogOut, Box, Moon, Sun, ShieldCheck, BookOpen } from "lucide-react";
 import { cn } from "./lib/utils";
 import Dashboard from "./pages/Dashboard";
 import Dossiers from "./pages/Dossiers";
@@ -10,6 +10,7 @@ import Rapports from "./pages/Rapports";
 import Parametres from "./pages/Parametres";
 import PortailOperations from "./pages/PortailOperations";
 import Camions from "./pages/Camions";
+import Guide from "./pages/Guide";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Settings } from "lucide-react";
@@ -42,6 +43,7 @@ function Sidebar({ isOpen, setIsOpen, logOut, user, theme, toggleTheme }: { isOp
     { path: "/flotte", label: "Gestion Flotte", icon: Truck },
     { path: "/finances", label: "Flux Trésorerie", icon: DollarSign },
     { path: "/rapports", label: "Executive Board", icon: FileBarChart },
+    { path: "/guide", label: "Guide d'Utilisation", icon: BookOpen },
     { path: "/parametres", label: "Configuration", icon: Settings },
   ];
 
@@ -304,6 +306,7 @@ function AppContent() {
               <Route path="/flotte" element={<Camions />} />
               <Route path="/finances" element={<Finances />} />
               <Route path="/rapports" element={<Rapports />} />
+              <Route path="/guide" element={<Guide />} />
               <Route path="/parametres" element={<Parametres />} />
             </Routes>
           </main>

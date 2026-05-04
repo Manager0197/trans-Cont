@@ -37,9 +37,6 @@ export default function PortailOperations() {
   const [activeTab, setActiveTab] = useState(
     user?.email === "flotte@translog-pro.com" ? "flotte" : "partenaires",
   );
-  const [activeSubTab, setActiveSubTab] = useState<"interne" | "externe">(
-    "interne",
-  );
 
   // States for Partenaires
   const [chargements, setChargements] = useState<any[]>([]);
@@ -339,7 +336,7 @@ export default function PortailOperations() {
               onClick={() => setActiveTab("partenaires")}
               className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "partenaires" ? "bg-amber-500 text-slate-900 shadow-lg" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}
             >
-              <Truck className="w-3.5 h-3.5" /> Flotte Externe
+              <Box className="w-3.5 h-3.5" /> Flotte Externe
             </button>
           </div>
 
@@ -420,33 +417,19 @@ export default function PortailOperations() {
                   Unités de Flotte
                 </h2>
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider">
-                  Flotte {activeSubTab === "interne" ? "en CDI" : "Partenaire"}
+                  Effectif {activeTab === "flotte" ? "Propriétaire" : "Partenaire"}
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="bg-slate-200 dark:bg-slate-800 p-1 rounded-lg flex gap-1">
-                  <button
-                    onClick={() => setActiveSubTab("interne")}
-                    className={`px-4 py-1.5 rounded-md font-bold text-[9px] uppercase transition-all ${activeSubTab === "interne" ? "bg-white dark:bg-slate-700 text-blue-600 shadow-sm" : "text-slate-500"}`}
-                  >
-                    Interne
-                  </button>
-                  <button
-                    onClick={() => setActiveSubTab("externe")}
-                    className={`px-4 py-1.5 rounded-md font-bold text-[9px] uppercase transition-all ${activeSubTab === "externe" ? "bg-white dark:bg-slate-700 text-amber-500 shadow-sm" : "text-slate-500"}`}
-                  >
-                    Externe
-                  </button>
-                </div>
                 <button
                   onClick={() => {
                     setShowNewCamion(true);
-                    setNewCamion({ ...newCamion, type: activeSubTab });
+                    setNewCamion({ ...newCamion, type: activeTab === "flotte" ? "interne" : "externe" });
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold uppercase text-[9px] hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2"
                 >
-                  <Plus className="w-3 h-3" /> Ajouter
+                  <Plus className="w-3.5 h-3.5" /> Ajouter
                 </button>
               </div>
             </div>
@@ -492,7 +475,7 @@ export default function PortailOperations() {
 
             {/* Missions List grouped by Dossier (Condensed) */}
             <div className="space-y-4">
-              {(activeSubTab === "interne"
+              {(activeTab === "flotte"
                 ? groupedFlotteData
                 : groupedExterneData
               ).map((group) => (
@@ -567,7 +550,7 @@ export default function PortailOperations() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {camions
                     .filter((c) =>
-                      activeSubTab === "interne"
+                      activeTab === "flotte"
                         ? c.type !== "externe"
                         : c.type === "externe",
                     )
@@ -681,7 +664,7 @@ export default function PortailOperations() {
                                   setEditCamionForm({
                                     numero: c.numero,
                                     chauffeur: c.chauffeur,
-                                    type: c.type || activeSubTab,
+                                    type: c.type || (activeTab === "flotte" ? "interne" : "externe"),
                                   });
                                 }}
                                 className="hover:text-blue-500 transition-colors"
