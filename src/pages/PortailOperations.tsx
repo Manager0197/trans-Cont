@@ -868,36 +868,44 @@ export default function PortailOperations() {
                     </button>
                   ))}
 
-                {/* Formulaire d'ajout rapide directe */}
-                <div className="mt-4 p-5 bg-blue-50/50 dark:bg-blue-900/10 rounded-[1.5rem] border-2 border-dashed border-blue-200 dark:border-blue-800/50">
-                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-3">
-                    + Ajout rapide (Si non listé)
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input 
-                      type="text" 
-                      placeholder="Immatriculation" 
-                      id="quick_numero"
-                      className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Chauffeur" 
-                      id="quick_chauffeur"
-                      className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                {/* Formulaire d'ajout rapide pour saisie directe (Parfait pour l'externe) */}
+                <div className="mt-4 p-6 bg-slate-50 dark:bg-slate-950/40 rounded-[1.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <div className="flex flex-col gap-4">
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest ml-1">
+                        Saisie Directe (Nouveau Véhicule)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input 
+                          type="text" 
+                          placeholder="IMMATRICULATION (Ex: AA-000-XX)" 
+                          id="quick_numero"
+                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-4 text-xs font-black uppercase outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="Chauffeur (Optionnel)" 
+                          id="quick_chauffeur"
+                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        />
+                      </div>
+                    </div>
+                    
                     <button 
                       onClick={async (e) => {
                         const target = e.currentTarget;
-                        const num = (document.getElementById('quick_numero') as HTMLInputElement).value;
-                        const chauf = (document.getElementById('quick_chauffeur') as HTMLInputElement).value;
+                        const numInput = document.getElementById('quick_numero') as HTMLInputElement;
+                        const chaufInput = document.getElementById('quick_chauffeur') as HTMLInputElement;
+                        const num = numInput.value;
+                        const chauf = chaufInput.value;
+                        
                         if (!num) return;
                         
                         target.disabled = true;
                         try {
                           const docRef = await addDoc(collection(db, "camions"), {
                             numero: num.trim().toUpperCase(),
-                            chauffeur: chauf.trim() || "Chauffeur externe",
+                            chauffeur: chauf.trim() || "Chauffeur Externe",
                             type: assigningMission.typeTransporteur,
                             statut: "actif",
                             createdAt: new Date().toISOString()
@@ -909,11 +917,17 @@ export default function PortailOperations() {
                           target.disabled = false;
                         }
                       }}
-                      className="sm:col-span-2 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-[9px] tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                      className="bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all"
                     >
-                      Enregistrer & Assigner
+                      Confirmer & Assigner l'unité
                     </button>
                   </div>
+                </div>
+
+                <div className="mt-8 mb-4 flex items-center gap-4">
+                  <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ou choisir une unité existante</span>
+                  <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div>
                 </div>
 
                 {camions.filter(
@@ -923,9 +937,9 @@ export default function PortailOperations() {
                       ? c.type !== "externe"
                       : c.type === "externe"),
                 ).length === 0 && (
-                  <div className="text-center py-6">
-                    <p className="text-slate-400 font-bold uppercase text-[9px] tracking-widest italic">
-                      Aucune unité pré-enregistrée
+                  <div className="text-center py-4">
+                    <p className="text-slate-400 font-bold uppercase text-[8px] tracking-widest italic">
+                      Aucun véhicule pré-enregistré dans la liste
                     </p>
                   </div>
                 )}
