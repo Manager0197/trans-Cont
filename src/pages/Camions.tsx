@@ -14,6 +14,7 @@ export default function Camions() {
   const [maintenances, setMaintenances] = useState<any[]>([]);
   
   const [showNew, setShowNew] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [newCamion, setNewCamion] = useState({ numero: "", chauffeur: "", type: "interne" });
   
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -24,6 +25,7 @@ export default function Camions() {
 
   // Maintenance state
   const [showMaintModal, setShowMaintModal] = useState<string | null>(null);
+  const [isSavingMaint, setIsSavingMaint] = useState(false);
   const [newMaint, setNewMaint] = useState({ type: "", description: "", cout: "", dateIntervention: new Date().toISOString().split('T')[0] });
   const [viewLogsId, setViewLogsId] = useState<string | null>(null);
 
@@ -66,7 +68,8 @@ export default function Camions() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCamion.numero) return;
+    if (!newCamion.numero || isSaving) return;
+    setIsSaving(true);
     try {
       await addDoc(collection(db, "camions"), {
         ...newCamion,
@@ -75,7 +78,11 @@ export default function Camions() {
       });
       setShowNew(false);
       setNewCamion({ numero: "", chauffeur: "", type: "interne" });
-    } catch (err) { handleFirestoreError(err, OperationType.CREATE, "camions"); }
+    } catch (err) { 
+      handleFirestoreError(err, OperationType.CREATE, "camions"); 
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleEdit = async (e: React.FormEvent, id: string) => {
@@ -124,7 +131,8 @@ export default function Camions() {
 
   const handleCreateMaintenance = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!showMaintModal || !newMaint.cout || !newMaint.type) return;
+    if (!showMaintModal || !newMaint.cout || !newMaint.type || isSavingMaint) return;
+    setIsSavingMaint(true);
     try {
       await addDoc(collection(db, "maintenances"), {
         ...newMaint,
@@ -134,7 +142,11 @@ export default function Camions() {
       });
       setShowMaintModal(null);
       setNewMaint({ type: "", description: "", cout: "", dateIntervention: new Date().toISOString().split('T')[0] });
-    } catch (err) { handleFirestoreError(err, OperationType.CREATE, "maintenances"); }
+    } catch (err) { 
+      handleFirestoreError(err, OperationType.CREATE, "maintenances"); 
+    } finally {
+      setIsSavingMaint(false);
+    }
   };
 
   return (
@@ -244,8 +256,14 @@ export default function Camions() {
             />
           </div>
           <div className="flex gap-2 items-end">
-            <button type="submit" className="flex-1 bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest py-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-colors">Enregistrer</button>
-            <button type="button" onClick={() => setShowNew(false)} className="px-6 py-4 text-slate-400 font-black uppercase text-[10px] hover:text-rose-500 transition-colors">Annuler</button>
+            <button 
+              type="submit" 
+              disabled={isSaving}
+              className="flex-1 bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest py-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-colors disabled:opacity-50"
+            >
+              {isSaving ? "Enregistrement..." : "Enregistrer"}
+            </button>
+            <button type="button" onClick={() => setShowNew(false)} disabled={isSaving} className="px-6 py-4 text-slate-400 font-black uppercase text-[10px] hover:text-rose-500 transition-colors">Annuler</button>
           </div>
         </form>
       )}
@@ -471,8 +489,14 @@ export default function Camions() {
                 </div>
 
                 <div className="p-8 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-50 dark:border-slate-800 flex gap-4">
-                   <button type="submit" className="flex-1 bg-blue-600 text-white font-black uppercase text-[10px] tracking-[0.2em] py-4 rounded-xl shadow-lg shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all">Enregistrer l'Entretien</button>
-                   <button type="button" onClick={() => setShowMaintModal(null)} className="px-6 py-4 text-slate-400 font-black uppercase text-[10px]">Annuler</button>
+                   <button 
+                    type="submit" 
+                    disabled={isSavingMaint}
+                    className="flex-1 bg-blue-600 text-white font-black uppercase text-[10px] tracking-[0.2em] py-4 rounded-xl shadow-lg shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                   >
+                     {isSavingMaint ? "Enregistrement..." : "Enregistrer l'Entretien"}
+                   </button>
+                   <button type="button" onClick={() => setShowMaintModal(null)} disabled={isSavingMaint} className="px-6 py-4 text-slate-400 font-black uppercase text-[10px]">Annuler</button>
                 </div>
              </form>
           </div>

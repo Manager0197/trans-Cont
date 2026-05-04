@@ -159,12 +159,12 @@ export default function PortailOperations() {
     const externeChargements = filteredData.filter(
       (c) => c.typeTransporteur === "externe",
     );
-    const groups: { [key: string]: { dossier: any; items: any[] } } = {};
+    const groups: { [key: string]: { id: string; dossier: any; items: any[] } } = {};
 
     externeChargements.forEach((ch) => {
       const dId = ch.dossierId || "unassigned";
       if (!groups[dId]) {
-        groups[dId] = { dossier: ch.dossier, items: [] };
+        groups[dId] = { id: dId, dossier: ch.dossier, items: [] };
       }
       groups[dId].items.push(ch);
     });
@@ -181,10 +181,10 @@ export default function PortailOperations() {
     const interneChargements = filteredData.filter(
       (c) => c.typeTransporteur === "interne",
     );
-    const groups: { [key: string]: { dossier: any; items: any[] } } = {};
+    const groups: { [key: string]: { id: string; dossier: any; items: any[] } } = {};
     interneChargements.forEach((ch) => {
       const dId = ch.dossierId || "unassigned";
-      if (!groups[dId]) groups[dId] = { dossier: ch.dossier, items: [] };
+      if (!groups[dId]) groups[dId] = { id: dId, dossier: ch.dossier, items: [] };
       groups[dId].items.push(ch);
     });
     return Object.values(groups).sort(
@@ -198,10 +198,10 @@ export default function PortailOperations() {
     const externeChargements = filteredData.filter(
       (c) => c.typeTransporteur === "externe",
     );
-    const groups: { [key: string]: { dossier: any; items: any[] } } = {};
+    const groups: { [key: string]: { id: string; dossier: any; items: any[] } } = {};
     externeChargements.forEach((ch) => {
       const dId = ch.dossierId || "unassigned";
-      if (!groups[dId]) groups[dId] = { dossier: ch.dossier, items: [] };
+      if (!groups[dId]) groups[dId] = { id: dId, dossier: ch.dossier, items: [] };
       groups[dId].items.push(ch);
     });
     return Object.values(groups).sort(
@@ -497,7 +497,7 @@ export default function PortailOperations() {
                 : groupedExterneData
               ).map((group) => (
                 <div
-                  key={group.dossier?.id || "unassigned"}
+                  key={group.id}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm"
                 >
                   <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
@@ -749,7 +749,7 @@ export default function PortailOperations() {
             <div className="space-y-4">
               {groupedPartenaireData.map((group) => (
                 <div
-                  key={group.dossier?.id || "unassigned"}
+                  key={group.id}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm"
                 >
                   <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/20 flex justify-between items-center">

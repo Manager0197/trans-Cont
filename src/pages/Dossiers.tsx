@@ -17,7 +17,7 @@ export default function Dossiers() {
   const [showNew, setShowNew] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [newDossier, setNewDossier] = useState<{numeroBL: string, nbConteneurs: number | string, prixContrat: number | string}>({ numeroBL: "", nbConteneurs: 1, prixContrat: "" });
+  const [newDossier, setNewDossier] = useState<{numeroBL: string, nbConteneurs: number | string, prixContrat: number | string}>({ numeroBL: "", nbConteneurs: 1, prixContrat: 0 });
   const [newConteneurs, setNewConteneurs] = useState([{ id: Math.random(), numero: '', type: "20'", transport: 'interne', prix: 0, avance: 0 }]);
 
   const DEFAULT_PRICES: any = useMemo(() => ({
@@ -201,6 +201,18 @@ export default function Dossiers() {
                 className="w-full bg-slate-950 text-white border border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600 font-bold"
                 value={newDossier.numeroBL}
                 onChange={e => setNewDossier({...newDossier, numeroBL: e.target.value})}
+              />
+            </div>
+            <div className="w-full">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Vente Dossier (BL) ({settings.devise})</label>
+              <input 
+                type="number" 
+                placeholder="Ex: 500000"
+                required
+                className="w-full bg-slate-950 text-white border border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600 font-bold"
+                value={newDossier.prixContrat}
+                onFocus={e => e.target.select()}
+                onChange={e => setNewDossier({...newDossier, prixContrat: parseInt(e.target.value) || 0})}
               />
             </div>
             <div className="w-full">
@@ -863,6 +875,8 @@ function AddChargementModal({ dossier, camions: externalCamions }: { dossier: an
         numero: form.numeroConteneur,
         dossierId: dossier.id,
         type: form.typeConteneur,
+        typeTransport: form.typeTransporteur,
+        statut: "en_attente",
         createdAt: new Date().toISOString()
       });
 
@@ -879,6 +893,7 @@ function AddChargementModal({ dossier, camions: externalCamions }: { dossier: an
         solde: form.prixTotal - form.avance,
         statutPaiement: (form.prixTotal - form.avance) <= 0 ? "paye" : "non_paye",
         dateChargement: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         createdAt: new Date().toISOString()
       });
       
