@@ -1,36 +1,38 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, updateDoc, doc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Search, Box, Truck, FolderOpen, Calendar, Plus, X, Trash2 } from "lucide-react";
+import { 
+  Search, Box, Truck, FolderOpen, Calendar, 
+  ChevronDown, ChevronUp, DollarSign, ArrowUpRight, 
+  ArrowDownRight, Filter, Download, CheckCircle2, AlertCircle
+} from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import { cn } from "../lib/utils";
-import ConfirmModal from "../components/ConfirmModal";
+import { useSettings } from "../hooks/useSettings";
 
 export default function Conteneurs() {
+  const { settings } = useSettings();
   const [conteneurs, setConteneurs] = useState<any[]>([]);
   const [dossiers, setDossiers] = useState<any[]>([]);
   const [chargements, setChargements] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [showModal, setShowModal] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [transportFilter, setTransportFilter] = useState("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
+  const [expandedDossiers, setExpandedDossiers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Fetch all containers
     const unsubConteneurs = onSnapshot(query(collection(db, "conteneurs"), orderBy("createdAt", "desc")), (snap) => {
       setConteneurs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, "conteneurs");
     });
 
-    // Fetch dossiers for mapping names/BL
     const unsubDossiers = onSnapshot(collection(db, "dossiers"), (snap) => {
       setDossiers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, "dossiers");
     });
 
-    // Fetch chargements to see transport info
     const unsubChargements = onSnapshot(collection(db, "chargements"), (snap) => {
       setChargements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (error) => {
@@ -44,182 +46,398 @@ export default function Conteneurs() {
     };
   }, []);
 
-  const filteredConteneurs = useMemo(() => {
-    return conteneurs.filter(c => {
-      const matchesSearch = c.numero?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesType = typeFilter === "all" || c.type === typeFilter;
-      return matchesSearch && matchesType;
-    });
-  }, [conteneurs, searchTerm, typeFilter]);
-
-  const stats = useMemo(() => {
-    return {
-      total: conteneurs.length,
-      c20: conteneurs.filter(c => c.type === "20'").length,
-      c40: conteneurs.filter(c => c.type === "40'").length,
-      other: conteneurs.filter(c => c.type !== "20'" && c.type !== "40'").length
-    };
-  }, [conteneurs]);
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      await deleteDoc(doc(db, "conteneurs", deleteId));
-      setDeleteId(null);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `conteneurs/${deleteId}`);
-    }
+  const toggleDossier = (id: string) => {
+    const next = new Set(expandedDossiers);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedDossiers(next);
   };
 
+  const groupedData = useMemo(() => {
+    const groups: Record<string, any> = {};
+
+    dossiers.forEach(d => {
+      const dossierChargements = chargements.filter(ch => ch.dossierId === d.id);
+      const dossierConteneurs = conteneurs.filter(c => c.dossierId === d.id);
+      
+      const totalCost = dossierChargements.reduce((acc, ch) => acc + (Number(ch.prixTotal) || 0), 0);
+      const totalRevenue = Number(d.prixContrat) || 0;
+      const margin = totalRevenue - totalCost;
+      
+      const isInterne = dossierChargements.some(ch => ch.typeTransporteur === "interne");
+      const isExterne = dossierChargements.some(ch => ch.typeTransporteur === "externe");
+      
+      let typeTransportValue = "À définir";
+      if (isInterne && isExterne) typeTransportValue = "Mixte";
+      else if (isInterne) typeTransportValue = "Interne";
+      else if (isExterne) typeTransportValue = "Externe";
+
+      groups[d.id] = {
+        ...d,
+        items: dossierConteneurs.map(c => ({
+          ...c,
+          chargement: dossierChargements.find(ch => ch.conteneurId === c.id)
+        })),
+        financials: {
+          revenue: totalRevenue,
+          cost: totalCost,
+          margin,
+          marginPercent: totalRevenue > 0 ? (margin / totalRevenue) * 100 : 0
+        },
+        typeTransport: typeTransportValue,
+        statutSoldé: d.statutPaiementClient === "paye" || d.statut === "soldé"
+      };
+    });
+
+    return Object.values(groups)
+      .filter((g: any) => {
+        const matchesSearch = 
+          g.numeroBL?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          g.client?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesTransport = 
+          transportFilter === "all" || 
+          g.typeTransport.toLowerCase() === transportFilter.toLowerCase();
+          
+        const matchesPayment = 
+          paymentStatusFilter === "all" || 
+          (paymentStatusFilter === "paye" ? g.statutSoldé : !g.statutSoldé);
+          
+        return matchesSearch && matchesTransport && matchesPayment;
+      })
+      .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [dossiers, conteneurs, chargements, searchTerm, transportFilter, paymentStatusFilter]);
+
+  const stats = useMemo(() => {
+    const totalRev = groupedData.reduce((acc, g) => acc + g.financials.revenue, 0);
+    const totalCost = groupedData.reduce((acc, g) => acc + g.financials.cost, 0);
+    return {
+      revenue: totalRev,
+      cost: totalCost,
+      profit: totalRev - totalCost,
+      pendingCount: groupedData.filter(g => !g.statutSoldé).length,
+      totalEVP: conteneurs.length
+    };
+  }, [groupedData, conteneurs]);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter font-display">
-            Mémoire <span className="text-blue-600">Logistique</span>
+            Inventaire <span className="text-blue-600">Fiscal EVP</span>
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight">Registre centralisé des unités scellées (EVP) et cycle de vie</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight">Registre comptable et opérationnel des flux de marchandises</p>
         </div>
+        <button 
+          className="bg-slate-900 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 transition-all active:scale-95 shadow-xl"
+          onClick={() => window.print()}
+        >
+          <Download className="w-4 h-4" /> Exporter PDF Fiscal
+        </button>
       </div>
 
+      {/* Financial KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <SummaryCard label="Unités Totales" value={stats.total} icon={<Box className="w-6 h-6" />} color="bg-blue-600 shadow-blue-500/20" />
-        <SummaryCard label="Conteneurs 20'" value={stats.c20} icon={<Box className="w-6 h-6" />} color="bg-emerald-600 shadow-emerald-500/10" />
-        <SummaryCard label="Conteneurs 40'" value={stats.c40} icon={<Box className="w-6 h-6" />} color="bg-amber-600 shadow-amber-500/10" />
-        <SummaryCard label="Hors Garabits" value={stats.other} icon={<Box className="w-6 h-6" />} color="bg-slate-800 shadow-slate-500/10" />
+        <FiscalCard 
+          label="Chiffre d'Affaires" 
+          value={stats.revenue} 
+          currency={settings.devise}
+          icon={<ArrowUpRight className="w-5 h-5 text-emerald-500" />}
+          sublabel="Volume de ventes global"
+        />
+        <FiscalCard 
+          label="Coûts Logistiques" 
+          value={stats.cost} 
+          currency={settings.devise}
+          icon={<ArrowDownRight className="w-5 h-5 text-rose-500" />}
+          sublabel="Frais transporteurs & Flotte"
+        />
+        <FiscalCard 
+          label="Résultat Net (EBITDA)" 
+          value={stats.profit} 
+          currency={settings.devise}
+          icon={<DollarSign className="w-5 h-5 text-blue-500" />}
+          sublabel={`${((stats.profit / (stats.revenue || 1)) * 100).toFixed(1)}% de marge`}
+          highlight
+        />
+        <FiscalCard 
+          label="Dossiers en Attente" 
+          value={stats.pendingCount} 
+          icon={<AlertCircle className="w-5 h-5 text-amber-500" />}
+          sublabel="À solder fiscalement"
+        />
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-8 transition-colors">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <input 
-              type="text" 
-              placeholder="Rechercher par matricule conteneur..."
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-900 dark:text-white"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-4 top-3.5 text-slate-400 w-5 h-5" />
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl shadow-slate-200/50 dark:shadow-none overflow-hidden transition-all">
+        {/* Filters Header */}
+        <div className="p-8 border-b border-slate-100 dark:border-slate-800 space-y-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <input 
+                type="text" 
+                placeholder="Rechercher par BL ou Client..."
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-900 dark:text-white"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+              <Search className="absolute left-4 top-4 text-slate-400 w-5 h-5" />
+            </div>
+            
+            <div className="flex gap-2 min-w-fit">
+              <select 
+                className="px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-[10px] uppercase tracking-widest text-slate-900 dark:text-white"
+                value={transportFilter}
+                onChange={e => setTransportFilter(e.target.value)}
+              >
+                <option value="all">Filtre Transport</option>
+                <option value="interne">Interne Only</option>
+                <option value="externe">Externe Only</option>
+                <option value="mixte">Flux Mixte</option>
+              </select>
+
+              <select 
+                className="px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-[10px] uppercase tracking-widest text-slate-900 dark:text-white"
+                value={paymentStatusFilter}
+                onChange={e => setPaymentStatusFilter(e.target.value)}
+              >
+                <option value="all">Échéance</option>
+                <option value="paye">Soldé</option>
+                <option value="non_paye">Non Soldé</option>
+              </select>
+            </div>
           </div>
-          <select 
-            className="md:w-64 px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-900 dark:text-white"
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
-          >
-            <option value="all">Tous les formats</option>
-            <option value="20'">Standard 20'</option>
-            <option value="40'">High Cube 40'</option>
-            <option value="Autre">Autres formats</option>
-          </select>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left">
+        {/* Master Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
             <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 whitespace-nowrap">
-                  <th className="pb-6 pt-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-4">Unité / Matricule</th>
-                  <th className="pb-6 pt-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-4">Dossier BL Associé</th>
-                  <th className="pb-6 pt-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-4">Vecteur Logistique</th>
-                  <th className="pb-6 pt-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-4 text-center">Statut Expédition</th>
-                  <th className="pb-6 pt-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-4 text-right pr-6">Action</th>
-                </tr>
+              <tr className="bg-slate-50 dark:bg-slate-800/30 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 dark:border-slate-800">
+                <th className="px-8 py-5">Dossier / BL</th>
+                <th className="px-6 py-5">Transport</th>
+                <th className="px-6 py-5">Assignation</th>
+                <th className="px-6 py-5">Vente (CA)</th>
+                <th className="px-6 py-5">Achat (Coût)</th>
+                <th className="px-6 py-5">Statut Fiscal</th>
+                <th className="px-8 py-5 text-right">Action</th>
+              </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {filteredConteneurs.map(c => {
-                const dossier = dossiers.find(d => d.id === c.dossierId);
-                const chargement = chargements.find(ch => ch.conteneurId === c.id);
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+              {groupedData.map((group: any) => {
+                const isExpanded = expandedDossiers.has(group.id);
+                const assignedCount = group.items.filter((item: any) => item.chargement?.camionId).length;
+                const totalCount = group.items.length;
+                const percentAssigned = totalCount > 0 ? (assignedCount / totalCount) * 100 : 0;
+                const isProfitable = group.financials.margin >= 0;
                 
                 return (
-                  <tr key={c.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors whitespace-nowrap">
-                    <td className="py-6 px-4">
-                      <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-xl transition-transform group-hover:scale-110 duration-300 ${c.type === "20'" ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
-                          <Box className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                             <p className="font-black text-slate-900 dark:text-white uppercase tracking-tighter text-lg">{c.numero || "NP-ALPHA"}</p>
-                             <div className="flex flex-col text-[8px] font-black leading-none text-slate-400 uppercase tracking-tighter">
-                               <span>DÉPART : {new Date(c.createdAt).toLocaleDateString('fr-FR')}</span>
-                               <span>À : {new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                             </div>
+                  <React.Fragment key={group.id}>
+                    <tr className={cn(
+                      "group hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all cursor-pointer",
+                      isExpanded && "bg-blue-50/30 dark:bg-blue-900/10"
+                    )} onClick={() => toggleDossier(group.id)}>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center border transition-all",
+                            group.statutSoldé 
+                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" 
+                              : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400"
+                          )}>
+                            <FolderOpen className="w-5 h-5" />
                           </div>
-                          <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">{c.type} Pieds</p>
+                          <div>
+                            <p className="font-black text-slate-900 dark:text-white text-base tracking-tighter uppercase">BL #{group.numeroBL}</p>
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mt-1">{group.client || "Client Externe"}</p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-6 px-4 font-black">
-                      <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                         <FolderOpen className="w-4 h-4 text-blue-500" />
-                         {dossier ? `BL #${dossier.numeroBL}` : 'NON ASSIGNÉ'}
-                      </div>
-                    </td>
-                    <td className="py-6 px-4">
-                      {chargement ? (
-                        <div className="flex items-center gap-3 text-slate-900 dark:text-white font-black text-sm uppercase tracking-tight">
-                          <div className={cn("w-2 h-2 rounded-full", chargement.typeTransporteur === 'interne' ? "bg-emerald-500" : "bg-amber-500")} />
-                          <span>{chargement.typeTransporteur === 'interne' ? 'Flotte Interne' : chargement.nomTransporteurExterne}</span>
+                      </td>
+                      <td className="px-6 py-6">
+                        <div className="flex items-center gap-2">
+                          <Truck className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400">
+                            {group.typeTransport}
+                          </span>
                         </div>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-600 font-bold text-[10px] uppercase tracking-widest">En attente d'engagement</span>
-                      )}
-                    </td>
-                    <td className="py-6 px-4 text-center">
-                       <span className={cn(
-                         "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm",
-                         chargement ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'
-                       )}>
-                         {chargement ? 'EN COURS' : 'DISPONIBLE'}
-                       </span>
-                    </td>
-                    <td className="py-6 px-4 text-right pr-6">
-                       <button 
-                         onClick={() => setDeleteId(c.id)}
-                         className="p-3 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 rounded-xl transition-all shadow-sm group/del"
-                         title="Retirer"
-                       >
-                         <Trash2 className="w-5 h-5 transition-transform group-hover/del:scale-110" />
-                       </button>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-6 py-6">
+                        <div className="w-24 space-y-1">
+                          <div className="flex justify-between items-center text-[8px] font-black uppercase text-slate-400">
+                            <span>{assignedCount}/{totalCount} EVP</span>
+                            <span>{percentAssigned.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div 
+                              className={cn("h-full transition-all duration-500", percentAssigned === 100 ? "bg-emerald-500" : "bg-blue-500")}
+                              style={{ width: `${percentAssigned}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-6 font-mono font-black text-slate-900 dark:text-white">
+                        {group.financials.revenue.toLocaleString()} <span className="text-[9px] text-slate-400">{settings.devise}</span>
+                      </td>
+                      <td className="px-6 py-6 font-mono font-black text-slate-500">
+                        {group.financials.cost.toLocaleString()} <span className="text-[9px] text-slate-400">{settings.devise}</span>
+                      </td>
+                      <td className="px-6 py-6">
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                          group.statutSoldé 
+                            ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                        )}>
+                          {group.statutSoldé ? <CheckCircle2 className="w-3 h-3" /> : <Box className="w-3 h-3" />}
+                          {group.statutSoldé ? "Clôturé" : "Ouvert"}
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <button className={cn(
+                          "p-2 rounded-lg transition-transform",
+                          isExpanded ? "rotate-180 bg-blue-100 dark:bg-blue-900/30 text-blue-600" : "text-slate-400 hover:text-slate-600"
+                        )}>
+                          <ChevronDown className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                    
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={7} className="px-8 pb-8 pt-0 bg-slate-50/50 dark:bg-slate-900/20">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-100 dark:border-slate-800 pt-6 animate-in fade-in slide-in-from-top-2">
+                            {/* Breakdown of containers */}
+                            <div className="space-y-4">
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Box className="w-3.5 h-3.5" /> Détail des Unités EVP
+                              </h4>
+                              <div className="grid grid-cols-1 gap-2">
+                                {group.items.map((item: any) => (
+                                  <div key={item.id} className="bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-800 flex justify-between items-center group/item hover:border-blue-500/50 transition-all">
+                                    <div className="flex items-center gap-3">
+                                      <div className={cn(
+                                        "w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black",
+                                        item.type === "20'" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"
+                                      )}>
+                                        {item.type}
+                                      </div>
+                                      <span className="font-mono text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-tighter">
+                                        {item.numero}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[9px] font-black text-slate-400 uppercase leading-none">Coût Transport</p>
+                                      <p className="text-xs font-black text-slate-900 dark:text-white tabular-nums">
+                                        {(item.chargement?.prixTotal || 0).toLocaleString()} {settings.devise}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Financial Summary for the BL */}
+                            <div className="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
+                               <div className="flex justify-between items-end border-b border-slate-50 dark:border-slate-800 pb-4">
+                                  <div>
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Totalité du Dossier</h4>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Équilibre Comptable</p>
+                                  </div>
+                                  <div className="text-right">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Rendement du Dossier</p>
+                                     <div className={cn(
+                                       "px-3 py-1 rounded-lg font-black text-[10px] uppercase tracking-widest",
+                                       isProfitable ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
+                                     )}>
+                                        {isProfitable ? "Performance Optimale" : "Ajustement Requis"}
+                                     </div>
+                                  </div>
+                               </div>
+                               
+                               <div className="space-y-4">
+                                  <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500 font-bold uppercase text-[10px]">Revenus (Contrat Client)</span>
+                                    <span className="font-mono font-black text-slate-900 dark:text-white">{group.financials.revenue.toLocaleString()} {settings.devise}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500 font-bold uppercase text-[10px]">Charges Opérationnelles</span>
+                                    <span className="font-mono font-black text-rose-500">-{group.financials.cost.toLocaleString()} {settings.devise}</span>
+                                  </div>
+                                  <div className="pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                                    <span className="font-black uppercase text-[11px] text-slate-900 dark:text-white tracking-widest text-lg">Profit Net</span>
+                                    <span className={cn("text-2xl font-black font-mono", isProfitable ? "text-emerald-500" : "text-rose-500")}>
+                                      {group.financials.margin.toLocaleString()} {settings.devise}
+                                    </span>
+                                  </div>
+                               </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
-              {filteredConteneurs.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-20 text-center">
-                    <p className="text-slate-400 font-bold">Aucune unité répertoriée dans le registre.</p>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
+          
+          {groupedData.length === 0 && (
+            <div className="py-32 text-center">
+               <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                 <Filter className="w-8 h-8 text-slate-200 dark:text-slate-700" />
+               </div>
+               <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em]">Aucune correspondance fiscale trouvée</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FiscalCard({ 
+  label, 
+  value, 
+  currency, 
+  icon, 
+  sublabel, 
+  highlight 
+}: { 
+  label: string, 
+  value: number, 
+  currency?: string, 
+  icon: React.ReactNode, 
+  sublabel: string,
+  highlight?: boolean
+}) {
+  return (
+    <div className={cn(
+      "p-8 rounded-[2.5rem] border transition-all duration-300 relative overflow-hidden group",
+      highlight 
+        ? "bg-slate-900 border-slate-800 shadow-2xl shadow-slate-900/20" 
+        : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none hover:border-blue-500/30"
+    )}>
+      {highlight && <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-3xl -mr-16 -mt-16" />}
+      
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+        <div className={cn(
+          "p-2.5 rounded-xl transition-transform group-hover:scale-110",
+          highlight ? "bg-slate-800 text-white" : "bg-slate-50 dark:bg-slate-800"
+        )}>
+          {icon}
         </div>
       </div>
 
-      <ConfirmModal 
-        isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={handleDelete}
-        title="Retrait d'Unité Physique"
-        message="Attention : la suppression d'un conteneur du registre est irréversible. Notez que cela n'effacera pas le dossier BL associé, mais l'unité ne sera plus comptabilisée dans l'inventaire."
-        confirmText="Supprimer définitivement"
-      />
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, icon, color }: { label: string, value: number, icon: React.ReactNode, color: string }) {
-  return (
-    <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex items-center justify-between group hover:border-blue-500/30 transition-all duration-300">
-      <div>
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">{label}</p>
-        <p className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">{value}</p>
-      </div>
-      <div className={cn("p-4 rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110", color)}>
-        {icon}
+      <div className="space-y-1">
+        <p className={cn(
+          "text-3xl font-black tabular-nums tracking-tighter font-mono",
+          highlight ? "text-white" : "text-slate-900 dark:text-white"
+        )}>
+          {value.toLocaleString()} {currency && <span className="text-xs ml-1 text-slate-400 uppercase">{currency}</span>}
+        </p>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{sublabel}</p>
       </div>
     </div>
   );
 }
-
-

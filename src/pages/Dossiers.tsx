@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, where, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Plus, ChevronDown, ChevronUp, Truck, FolderOpen, Search, Trash2, Edit2, Check, X as XIcon, Box } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Truck, FolderOpen, Search, Trash2, Edit2, Check, X as XIcon, Box, CheckCircle2, DollarSign } from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import ConfirmModal from "../components/ConfirmModal";
+import { cn } from "../lib/utils";
 
 import { useSettings } from "../hooks/useSettings";
 
@@ -17,7 +18,7 @@ export default function Dossiers() {
   const [showNew, setShowNew] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [newDossier, setNewDossier] = useState<{numeroBL: string, nbConteneurs: number | string, prixContrat: number | string}>({ numeroBL: "", nbConteneurs: 1, prixContrat: 0 });
+  const [newDossier, setNewDossier] = useState<{numeroBL: string, client: string, nbConteneurs: number | string, prixContrat: number | string}>({ numeroBL: "", client: "", nbConteneurs: 1, prixContrat: 0 });
   const [newConteneurs, setNewConteneurs] = useState([{ id: Math.random(), numero: '', type: "20'", transport: 'interne', prix: 0, avance: 0 }]);
 
   const DEFAULT_PRICES: any = useMemo(() => ({
@@ -86,9 +87,11 @@ export default function Dossiers() {
     try {
       const docRef = await addDoc(collection(db, "dossiers"), {
         numeroBL: newDossier.numeroBL,
+        client: newDossier.client || "Client Inconnu",
         nbConteneurs: Number(newDossier.nbConteneurs) || 0,
         prixContrat: Number(newDossier.prixContrat) || 0,
         statut: "en_cours",
+        statutPaiementClient: "non_paye",
         dateCreation: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -131,7 +134,7 @@ export default function Dossiers() {
       setTimeout(() => {
         setShowNew(false);
         setSaveSuccess(false);
-        setNewDossier({ numeroBL: "", nbConteneurs: 1, prixContrat: "" });
+        setNewDossier({ numeroBL: "", client: "", nbConteneurs: 1, prixContrat: "" });
         setNewConteneurs([{ id: Math.random(), numero: '', type: "20'", transport: 'interne', prix: 0, avance: 0 }]);
       }, 1500);
     } catch (err) {
@@ -191,7 +194,7 @@ export default function Dossiers() {
 
       {showNew && (
         <form onSubmit={handleCreate} className="bg-slate-900 p-6 sm:p-8 rounded-[2rem] shadow-xl flex flex-col gap-8 animate-in fade-in slide-in-from-top-4 duration-300 border border-slate-800">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="w-full">
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Numéro de BL</label>
               <input 
@@ -201,6 +204,16 @@ export default function Dossiers() {
                 className="w-full bg-slate-950 text-white border border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600 font-bold"
                 value={newDossier.numeroBL}
                 onChange={e => setNewDossier({...newDossier, numeroBL: e.target.value})}
+              />
+            </div>
+            <div className="w-full">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Client</label>
+              <input 
+                type="text" 
+                placeholder="Ex: TRANS-AFRIQUE"
+                className="w-full bg-slate-950 text-white border border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600 font-bold"
+                value={newDossier.client}
+                onChange={e => setNewDossier({...newDossier, client: e.target.value})}
               />
             </div>
             <div className="w-full">
@@ -444,9 +457,21 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
     }
   };
 
+  const togglePaiementStatus = async () => {
+    try {
+      await updateDoc(doc(db, "dossiers", dossier.id), {
+        statutPaiementClient: dossier.statutPaiementClient === "paye" ? "non_paye" : "paye",
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `dossiers/${dossier.id}`);
+    }
+  };
+
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     numeroBL: dossier.numeroBL,
+    client: dossier.client || "",
     nbConteneurs: dossier.nbConteneurs,
     prixContrat: dossier.prixContrat
   });
@@ -517,9 +542,9 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                 ) : (
                   <>
                     <h3 className="text-base sm:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter truncate max-w-[120px] sm:max-w-none">BL #{dossier.numeroBL}</h3>
-                    <div className="flex flex-col text-[8px] font-black text-slate-400 dark:text-slate-500 leading-tight">
-                       <span>{new Date(dossier.createdAt).toLocaleDateString('fr-FR')}</span>
-                       <span>À {new Date(dossier.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <div className="flex flex-col text-[8px] font-black leading-tight">
+                       <span className="text-blue-600 dark:text-blue-400 uppercase truncate max-w-[150px]">{dossier.client || "Client Inconnu"}</span>
+                       <span className="text-slate-400 dark:text-slate-500">{new Date(dossier.createdAt).toLocaleDateString('fr-FR')}</span>
                     </div>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
@@ -584,6 +609,22 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
 
       {expanded && (
         <div className="p-6 sm:p-10 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 transition-colors">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className="lg:col-span-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Client</label>
+              {isEditing ? (
+                 <input 
+                   type="text" 
+                   className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg px-3 py-2 text-sm font-bold text-slate-900 dark:text-white"
+                   value={editForm.client}
+                   onChange={e => setEditForm({...editForm, client: e.target.value})}
+                 />
+              ) : (
+                <p className="font-bold text-slate-900 dark:text-white px-1">{dossier.client || "Client Inconnu"}</p>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative group/edit">
               <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-4">Vente Dossier (BL)</p>
@@ -650,6 +691,18 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
               <h4 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tighter">Manifeste d'Expédition</h4>
             </div>
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button 
+                onClick={(e) => { e.stopPropagation(); togglePaiementStatus(); }} 
+                className={cn(
+                  "flex-1 sm:flex-none text-[10px] px-4 py-2 rounded-lg font-black uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2",
+                  dossier.statutPaiementClient === "paye" 
+                    ? "bg-emerald-500 text-white hover:bg-emerald-600" 
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
+                )}
+              >
+                {dossier.statutPaiementClient === "paye" ? <CheckCircle2 className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
+                {dossier.statutPaiementClient === "paye" ? "Dossier Soldé" : "Marquer Soldé"}
+              </button>
               <button 
                 onClick={(e) => { e.stopPropagation(); toggleStatus(); }} 
                 className="flex-1 sm:flex-none text-xs px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-100 bg-white font-medium shadow-sm transition-colors"

@@ -172,21 +172,21 @@ export default function PortailOperations() {
   }, [filteredData]);
 
   const groupedPartenaireData = useMemo(() => {
-    return groupedData.filter(group => 
-      group.items.some(item => item.typeTransporteur === "externe")
-    ).map(group => ({
-      ...group,
-      items: group.items.filter(item => item.typeTransporteur === "externe")
-    }));
+    return groupedData
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => item.typeTransporteur === "externe")
+      }))
+      .filter(group => group.items.length > 0);
   }, [groupedData]);
 
   const groupedFlotteData = useMemo(() => {
-    return groupedData.filter(group => 
-      group.items.some(item => item.typeTransporteur === "interne")
-    ).map(group => ({
-      ...group,
-      items: group.items.filter(item => item.typeTransporteur === "interne")
-    }));
+    return groupedData
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => item.typeTransporteur !== "externe") // treat empty/undefined as interne
+      }))
+      .filter(group => group.items.length > 0);
   }, [groupedData]);
 
   const handleCreateCamion = async (e: React.FormEvent) => {
