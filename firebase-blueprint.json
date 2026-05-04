@@ -65,15 +65,15 @@
       "required": ["numero", "chauffeur", "type"]
     },
     "Maintenance": {
-      "title": "Rapport de Maintenance",
-      "description": "Suivi des dépenses et pannes par véhicule.",
+      "title": "Journal de Dépenses & Incident",
+      "description": "Suivi exhaustif des dépenses (carburant, péage, ration) et pannes par véhicule.",
       "type": "object",
       "properties": {
         "camionId": { "type": "string" },
-        "type": { "type": "string", "description": "Ex: Panne, Vidange, Pneus, Pièces" },
-        "description": { "type": "string", "description": "Détails de l'intervention" },
-        "cout": { "type": "number", "description": "Montant de la dépense" },
-        "dateIntervention": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "description": "Catégorie: Panne, Accident, Pneus, Vidange, Pièces, Carburant, Péage, Amende, Ration" },
+        "description": { "type": "string", "description": "Détails de l'intervention ou observation" },
+        "cout": { "type": "number", "description": "Montant de la dépense ou coût de réparation" },
+        "dateIntervention": { "type": "string", "format": "date" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["camionId", "type", "cout", "dateIntervention", "createdAt"]
