@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Truck, Plus, Check, X as XIcon, Trash2, Edit2, LayoutDashboard, DollarSign, AlertCircle, TrendingUp, Wrench, History, Calendar } from "lucide-react";
+import { Truck, Plus, Check, X as XIcon, Trash2, Edit2, LayoutDashboard, DollarSign, AlertCircle, TrendingUp, Wrench, History, Calendar, Box } from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import { useSettings } from "../hooks/useSettings";
 import ConfirmModal from "../components/ConfirmModal";
@@ -22,6 +22,7 @@ export default function Camions() {
   const [editForm, setEditForm] = useState({ numero: "", chauffeur: "", type: "interne" });
   
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"interne" | "externe">("interne");
   const [assigningLoading, setAssigningLoading] = useState<string | null>(null);
 
   // Maintenance state
@@ -172,9 +173,13 @@ export default function Camions() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter font-display">
-            Gestion <span className="text-blue-600">Flotte Interne</span>
+            Gestion <span className="text-blue-600">Flotte {activeTab === "interne" ? "Interne" : "Externe"}</span>
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight mt-1">Pilotage des actifs roulants, assignation chauffeurs et revue de performance</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight mt-1">
+            {activeTab === "interne" 
+              ? "Pilotage des actifs roulants internes, assignation chauffeurs et revue de performance"
+              : "Suivi des prestataires logistiques et transporteurs tiers"}
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <button 
@@ -184,16 +189,35 @@ export default function Camions() {
             Imprimer l'État
           </button>
           <button 
-            onClick={() => setShowNew(true)}
+            onClick={() => {
+              setNewCamion({...newCamion, type: activeTab});
+              setShowNew(true);
+            }}
             className="w-full sm:w-auto bg-blue-600 text-white px-6 sm:px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2"
           >
-            <Plus className="w-4 h-4" /> Ajouter un véhicule
+            <Plus className="w-4 h-4" /> Ajouter un {activeTab === "interne" ? "camion" : "prestataire"}
           </button>
         </div>
       </div>
 
+      {/* Tabs Switcher */}
+      <div className="bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex w-full max-w-md mx-auto sm:mx-0 shadow-inner">
+        <button
+          onClick={() => setActiveTab("interne")}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "interne" ? "bg-white dark:bg-slate-800 text-blue-600 shadow-xl" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+        >
+          <Truck className="w-4 h-4" /> Flotte CDI
+        </button>
+        <button
+          onClick={() => setActiveTab("externe")}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "externe" ? "bg-white dark:bg-slate-800 text-amber-500 shadow-xl" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+        >
+          <Box className="w-4 h-4" /> Prestataires
+        </button>
+      </div>
+
       {/* Missions Internes en Attente */}
-      {pendingMissions.length > 0 && (
+      {activeTab === "interne" && pendingMissions.length > 0 && (
         <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-[2rem] p-8 space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
@@ -229,7 +253,7 @@ export default function Camions() {
                       value=""
                     >
                       <option value="">Choisir un camion...</option>
-                      {camions.filter(c => c.statut === 'actif').map(c => (
+                      {camions.filter(c => c.statut === 'actif' && c.type !== 'externe').map(c => (
                         <option key={c.id} value={c.id}>{c.numero} - {c.chauffeur}</option>
                       ))}
                     </select>
@@ -323,7 +347,9 @@ export default function Camions() {
       )}
 
       <div className="grid grid-cols-1 gap-8">
-        {camions.map(c => {
+        {camions
+          .filter(c => activeTab === 'interne' ? c.type !== 'externe' : c.type === 'externe')
+          .map(c => {
           const stats = getStats(c.id);
           return (
             <div key={c.id} className="bg-white dark:bg-slate-900 rounded-[2rem] lg:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl group/card transition-all hover:border-blue-500/20">

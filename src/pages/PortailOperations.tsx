@@ -35,7 +35,7 @@ export default function PortailOperations() {
   const { user, logOut } = useAuth();
   const { settings } = useSettings();
   const [activeTab, setActiveTab] = useState(
-    user?.email === "flotte@translog-pro.com" ? "flotte" : "partenaires",
+    user?.email === "flotte@translog-pro.com" ? "flotte" : "global",
   );
 
   // States for Partenaires
@@ -50,6 +50,8 @@ export default function PortailOperations() {
 
   // States for Flotte
   const [camions, setCamions] = useState<any[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
   const [showNewCamion, setShowNewCamion] = useState(false);
   const [newCamion, setNewCamion] = useState({
     numero: "",
@@ -151,19 +153,15 @@ export default function PortailOperations() {
     return result;
   }, [chargements, dossiers, blSearch, dateRange]);
 
-  // --- Partenaire Logic ---
-  const groupedPartenaireData = useMemo(() => {
-    const externeChargements = filteredData.filter(
-      (c) => c.typeTransporteur === "externe",
-    );
+  const groupedData = useMemo(() => {
     const groups: { [key: string]: { id: string; dossier: any; items: any[] } } = {};
-
-    externeChargements.forEach((ch) => {
-      const dId = ch.dossierId || "unassigned";
-      if (!groups[dId]) {
-        groups[dId] = { id: dId, dossier: ch.dossier, items: [] };
+    
+    filteredData.forEach((ch) => {
+      const gId = ch.dossierId || "unassigned";
+      if (!groups[gId]) {
+        groups[gId] = { id: gId, dossier: ch.dossier, items: [] };
       }
-      groups[dId].items.push(ch);
+      groups[gId].items.push(ch);
     });
 
     return Object.values(groups).sort(
@@ -173,40 +171,23 @@ export default function PortailOperations() {
     );
   }, [filteredData]);
 
-  // --- Flotte Logic ---
+  const groupedPartenaireData = useMemo(() => {
+    return groupedData.filter(group => 
+      group.items.some(item => item.typeTransporteur === "externe")
+    ).map(group => ({
+      ...group,
+      items: group.items.filter(item => item.typeTransporteur === "externe")
+    }));
+  }, [groupedData]);
+
   const groupedFlotteData = useMemo(() => {
-    const interneChargements = filteredData.filter(
-      (c) => c.typeTransporteur === "interne",
-    );
-    const groups: { [key: string]: { id: string; dossier: any; items: any[] } } = {};
-    interneChargements.forEach((ch) => {
-      const dId = ch.dossierId || "unassigned";
-      if (!groups[dId]) groups[dId] = { id: dId, dossier: ch.dossier, items: [] };
-      groups[dId].items.push(ch);
-    });
-    return Object.values(groups).sort(
-      (a, b) =>
-        new Date(b.dossier?.createdAt || 0).getTime() -
-        new Date(a.dossier?.createdAt || 0).getTime(),
-    );
-  }, [filteredData]);
-
-  const groupedExterneData = useMemo(() => {
-    const externeChargements = filteredData.filter(
-      (c) => c.typeTransporteur === "externe",
-    );
-    const groups: { [key: string]: { id: string; dossier: any; items: any[] } } = {};
-    externeChargements.forEach((ch) => {
-      const dId = ch.dossierId || "unassigned";
-      if (!groups[dId]) groups[dId] = { id: dId, dossier: ch.dossier, items: [] };
-      groups[dId].items.push(ch);
-    });
-    return Object.values(groups).sort(
-      (a, b) =>
-        new Date(b.dossier?.createdAt || 0).getTime() -
-        new Date(a.dossier?.createdAt || 0).getTime(),
-    );
-  }, [filteredData]);
+    return groupedData.filter(group => 
+      group.items.some(item => item.typeTransporteur === "interne")
+    ).map(group => ({
+      ...group,
+      items: group.items.filter(item => item.typeTransporteur === "interne")
+    }));
+  }, [groupedData]);
 
   const handleCreateCamion = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,10 +246,17 @@ export default function PortailOperations() {
   const handleAssignCamion = async (camionId: string) => {
     if (!assigningMission) return;
     try {
-      await updateDoc(doc(db, "chargements", assigningMission.id), {
+      const selectedCamion = camions.find(c => c.id === camionId);
+      const updates: any = {
         camionId: camionId,
         updatedAt: new Date().toISOString(),
-      });
+      };
+      
+      if (selectedCamion) {
+        updates.typeTransporteur = selectedCamion.type === "externe" ? "externe" : "interne";
+      }
+
+      await updateDoc(doc(db, "chargements", assigningMission.id), updates);
       setAssigningMission(null);
     } catch (err) {
       handleFirestoreError(
@@ -326,6 +314,12 @@ export default function PortailOperations() {
           </div>
 
           <div className="hidden md:flex items-center gap-1 bg-slate-800/50 p-1 rounded-2xl border border-slate-700/50">
+            <button
+              onClick={() => setActiveTab("global")}
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "global" ? "bg-white text-slate-900 shadow-lg" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" /> Tout
+            </button>
             <button
               onClick={() => setActiveTab("flotte")}
               className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "flotte" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}
@@ -408,135 +402,221 @@ export default function PortailOperations() {
           </button>
         </div>
 
-        {activeTab === "flotte" ? (
+        {activeTab === "flotte" || activeTab === "global" ? (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Simple Fleet Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                  Unités de Flotte
-                </h2>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">
-                  Effectif {activeTab === "flotte" ? "Propriétaire" : "Partenaire"}
-                </p>
-              </div>
+            {activeTab === "flotte" && (
+              <>
+                {/* Simple Fleet Header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                      Unités de Flotte
+                    </h2>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                      Effectif Propriétaire
+                    </p>
+                  </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setShowNewCamion(true);
-                    setNewCamion({ ...newCamion, type: activeTab === "flotte" ? "interne" : "externe" });
-                  }}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Ajouter
-                </button>
-              </div>
-            </div>
-
-            {showNewCamion && (
-              <form
-                onSubmit={handleCreateCamion}
-                className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4"
-              >
-                <input
-                  placeholder="Immatriculation"
-                  required
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-medium"
-                  value={newCamion.numero}
-                  onChange={(e) =>
-                    setNewCamion({ ...newCamion, numero: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Conducteur"
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-medium"
-                  value={newCamion.chauffeur}
-                  onChange={(e) =>
-                    setNewCamion({ ...newCamion, chauffeur: e.target.value })
-                  }
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-emerald-600 text-white font-bold uppercase text-[9px] rounded-lg"
-                  >
-                    Enregistrer
-                  </button>
-                  <button
-                    onClick={() => setShowNewCamion(false)}
-                    className="px-3 text-slate-400 font-bold uppercase text-[9px]"
-                  >
-                    Annuler
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setShowNewCamion(true);
+                        setNewCamion({ ...newCamion, type: "interne" });
+                      }}
+                      className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Ajouter
+                    </button>
+                  </div>
                 </div>
-              </form>
+
+                {showNewCamion && (
+                  <form
+                    onSubmit={handleCreateCamion}
+                    className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4"
+                  >
+                    <input
+                      placeholder="Immatriculation"
+                      required
+                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-medium"
+                      value={newCamion.numero}
+                      onChange={(e) =>
+                        setNewCamion({ ...newCamion, numero: e.target.value })
+                      }
+                    />
+                    <input
+                      placeholder="Conducteur"
+                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-medium"
+                      value={newCamion.chauffeur}
+                      onChange={(e) =>
+                        setNewCamion({ ...newCamion, chauffeur: e.target.value })
+                      }
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        className="flex-1 bg-emerald-600 text-white font-bold uppercase text-[9px] rounded-lg"
+                      >
+                        Enregistrer
+                      </button>
+                      <button
+                        onClick={() => setShowNewCamion(false)}
+                        className="px-3 text-slate-400 font-bold uppercase text-[9px]"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </>
             )}
 
-            {/* Missions List grouped by Dossier (Condensed) */}
-            <div className="space-y-4">
-              {(activeTab === "flotte"
-                ? groupedFlotteData
-                : groupedExterneData
-              ).map((group) => (
-                <div
-                  key={group.id}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm"
-                >
-                  <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                      #{group.dossier?.numeroBL || "SANS DOSSIER"} •{" "}
-                      <span className="text-slate-500">
-                        {group.dossier?.client || "Client Inconnu"}
-                      </span>
-                    </span>
-                    <span className="text-[10px] font-medium text-slate-400">
-                      {group.items.length} unité(s)
-                    </span>
-                  </div>
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {group.items.map((miss) => {
-                      const camion = camions.find(
-                        (c) => c.id === miss.camionId,
-                      );
-                      return (
-                        <div
-                          key={miss.id}
-                          onClick={() => setAssigningMission(miss)}
-                          className="px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <span className="text-xs font-bold text-slate-900 dark:text-white">
-                              {miss.numeroConteneur}
-                            </span>
-                            <span className="text-[9px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded uppercase text-slate-500 font-bold">
-                              {miss.ville}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {camion ? (
-                              <div className="flex items-center gap-2">
-                                <Truck className="w-3 h-3 text-blue-500" />
-                                <span className="text-[10px] font-bold uppercase text-slate-700 dark:text-slate-300">
-                                  {camion.numero}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[9px] text-rose-500 font-bold uppercase animate-pulse">
-                                À affecter
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+            {activeTab === "global" && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 px-2">
+                 <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Dossiers Actifs
+                  </p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white">
+                    {groupedData.length}
+                  </p>
                 </div>
-              ))}
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Total Conteneurs
+                  </p>
+                  <p className="text-xl font-bold text-blue-600">
+                    {filteredData.length}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Assignés
+                  </p>
+                  <p className="text-xl font-bold text-emerald-600">
+                    {filteredData.filter(c => c.camionId).length}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    En attente
+                  </p>
+                  <p className="text-xl font-bold text-rose-500">
+                    {filteredData.filter(c => !c.camionId).length}
+                  </p>
+                </div>
+              </div>
+            )}
+                {/* Missions List grouped by Dossier (Collapsible Folders) */}
+            <div className="space-y-4">
+              {(activeTab === "global" 
+                ? groupedData 
+                : activeTab === "flotte" 
+                  ? groupedFlotteData 
+                  : groupedPartenaireData
+              ).map((group) => {
+                const isCollapsed = collapsedGroups[group.id] ?? true;
+                const itemsCount = group.items.length;
+                const missingUnits = group.items.some(m => !m.camionId);
+                
+                return (
+                  <div
+                    key={group.id}
+                    className={`bg-white dark:bg-slate-900 border transition-all duration-300 rounded-2xl overflow-hidden ${isCollapsed ? "border-slate-200 dark:border-slate-800 shadow-sm" : "border-blue-500/30 shadow-xl dark:shadow-blue-900/10"}`}
+                  >
+                    <div 
+                      onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.id]: !isCollapsed }))}
+                      className={`px-5 py-4 cursor-pointer flex justify-between items-center transition-colors ${isCollapsed ? "bg-white dark:bg-slate-900" : "bg-blue-50/30 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/20"}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isCollapsed ? "bg-slate-100 dark:bg-slate-800 text-slate-400" : "bg-blue-600 text-white shadow-lg shadow-blue-500/30 rotate-6"}`}>
+                           <Box className={`w-5 h-5 transition-transform ${isCollapsed ? "" : "-rotate-6"}`} />
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">
+                            BL: #{group.dossier?.numeroBL || "DOSSIER SANS NUMÉRO"}
+                          </h4>
+                          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                            {group.dossier?.client || "Client Inconnu"} • {itemsCount} CONTENEUR(S)
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {!isCollapsed && missingUnits && (
+                           <span className="text-[8px] font-black text-rose-500 bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded-full uppercase tracking-tighter animate-pulse">
+                             Assignation Requise
+                           </span>
+                        )}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform ${isCollapsed ? "text-slate-300" : "text-blue-500 rotate-180 bg-blue-100 dark:bg-blue-900/40"}`}>
+                           <Plus className={`w-4 h-4 transition-transform ${isCollapsed ? "" : "rotate-45"}`} />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {!isCollapsed && (
+                      <div className="divide-y divide-slate-50 dark:divide-slate-800/50 animate-in slide-in-from-top-2 duration-200">
+                        {group.items.map((miss) => {
+                          const camion = camions.find(
+                            (c) => c.id === miss.camionId,
+                          );
+                          const isInterne = miss.typeTransporteur === "interne";
+                          
+                          return (
+                            <div
+                              key={miss.id}
+                              onClick={() => setAssigningMission(miss)}
+                              className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-6">
+                                <div className={`w-1.5 h-8 rounded-full ${isInterne ? 'bg-blue-500' : 'bg-amber-500'}`}></div>
+                                <div>
+                                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Conteneur</p>
+                                  <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+                                    {miss.numeroConteneur}
+                                  </span>
+                                </div>
+                                <div className="h-8 w-px bg-slate-100 dark:bg-slate-800"></div>
+                                <div>
+                                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Destination</p>
+                                  <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg uppercase text-slate-600 font-black">
+                                    {miss.ville}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                {camion ? (
+                                  <div className="flex flex-col items-end">
+                                    <p className={`text-[8px] font-black ${isInterne ? 'text-blue-600' : 'text-amber-600'} uppercase tracking-[0.2em] mb-1`}>
+                                      {isInterne ? 'Vecteur CDI' : 'Vecteur Externe'}
+                                    </p>
+                                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${isInterne ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 border-blue-100' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 border-amber-100'}`}>
+                                      <Truck className="w-3.5 h-3.5" />
+                                      <span className="text-[10px] font-black uppercase">
+                                        {camion.numero}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="bg-rose-500/10 text-rose-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border border-rose-500/20 flex items-center gap-2">
+                                    <AlertCircle className="w-3 h-3" />
+                                    Besoins d'unité
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Fleet Status Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            {activeTab !== "global" && (
+              <>
+                {/* Fleet Status Table */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 dark:border-slate-800">
@@ -685,8 +765,10 @@ export default function PortailOperations() {
                 </tbody>
               </table>
             </div>
-          </div>
-        ) : (
+          </>
+        )}
+      </div>
+    ) : activeTab === "partenaires" ? (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Simple Grid and Tables for Partenaires */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -730,55 +812,79 @@ export default function PortailOperations() {
             </div>
 
             <div className="space-y-4">
-              {groupedPartenaireData.map((group) => (
-                <div
-                  key={group.id}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm"
-                >
-                  <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/20 flex justify-between items-center">
-                    <h4 className="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                      Dossier BL: #{group.dossier?.numeroBL || "SANS DOSSIER"}
-                    </h4>
-                    <span className="text-xs font-bold text-amber-600">
-                      {group.items
-                        .reduce(
-                          (sum, item) => sum + (Number(item.prixTotal) || 0),
-                          0,
-                        )
-                        .toLocaleString()}{" "}
-                      {settings.devise}
-                    </span>
+              {groupedPartenaireData.map((group) => {
+                const isCollapsed = collapsedGroups[group.id] ?? true;
+                return (
+                  <div
+                    key={group.id}
+                    className={`bg-white dark:bg-slate-900 border transition-all duration-300 rounded-2xl overflow-hidden ${isCollapsed ? "border-slate-200 dark:border-slate-800 shadow-sm" : "border-amber-500/30 shadow-xl dark:shadow-amber-900/10"}`}
+                  >
+                    <div 
+                      onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.id]: !isCollapsed }))}
+                      className={`px-5 py-4 cursor-pointer flex justify-between items-center transition-colors ${isCollapsed ? "bg-white dark:bg-slate-900" : "bg-amber-50/30 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/20"}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isCollapsed ? "bg-slate-100 dark:bg-slate-800 text-slate-400" : "bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/30 rotate-6"}`}>
+                           <Box className={`w-5 h-5 transition-transform ${isCollapsed ? "" : "-rotate-6"}`} />
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">
+                            BL: #{group.dossier?.numeroBL || "DOSSIER SANS NUMÉRO"}
+                          </h4>
+                          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                            {group.dossier?.client || "Client Inconnu"} • {group.items.reduce((sum, item) => sum + (Number(item.prixTotal) || 0), 0).toLocaleString()} {settings.devise}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform ${isCollapsed ? "text-slate-300" : "text-amber-500 rotate-180 bg-amber-100 dark:bg-amber-900/40"}`}>
+                           <Plus className={`w-4 h-4 transition-transform ${isCollapsed ? "" : "rotate-45"}`} />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {!isCollapsed && (
+                      <div className="animate-in slide-in-from-top-2 duration-200">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+                              <th className="px-6 py-3">Conteneur</th>
+                              <th className="px-6 py-3">Ville</th>
+                              <th className="px-6 py-3 text-right">Tarif (FCFA)</th>
+                              <th className="px-6 py-3">Vecteur</th>
+                              <th className="px-6 py-3 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                            {group.items.map((miss) => (
+                              <MissionRow
+                                key={miss.id}
+                                miss={miss}
+                                camions={camions}
+                                setAssigningMission={setAssigningMission}
+                              />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="text-[8px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                        <th className="px-4 py-2">Conteneur</th>
-                        <th className="px-4 py-2">Ville</th>
-                        <th className="px-4 py-2 text-right">Tarif (FCFA)</th>
-                        <th className="px-4 py-2">Vecteur</th>
-                        <th className="px-4 py-2 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                      {group.items.map((miss) => (
-                        <MissionRow
-                          key={miss.id}
-                          miss={miss}
-                          camions={camions}
-                          setAssigningMission={setAssigningMission}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-        )}
+        ) : null}
       </main>
 
       {/* Mobile Nav for Portal */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 p-2 flex justify-around items-center z-40 pb-safe">
+        <button
+          onClick={() => setActiveTab("global")}
+          className={`flex flex-col items-center gap-1 p-2 ${activeTab === "global" ? "text-white" : "text-slate-500"}`}
+        >
+          <LayoutDashboard className="w-5 h-5" />{" "}
+          <span className="text-[8px] font-black uppercase">Tout</span>
+        </button>
         <button
           onClick={() => setActiveTab("flotte")}
           className={`flex flex-col items-center gap-1 p-2 ${activeTab === "flotte" ? "text-blue-500" : "text-slate-500"}`}
@@ -790,7 +896,7 @@ export default function PortailOperations() {
           onClick={() => setActiveTab("partenaires")}
           className={`flex flex-col items-center gap-1 p-2 ${activeTab === "partenaires" ? "text-amber-500" : "text-slate-500"}`}
         >
-          <Calendar className="w-5 h-5" />{" "}
+          <Box className="w-5 h-5" />{" "}
           <span className="text-[8px] font-black uppercase">Missions</span>
         </button>
       </nav>
