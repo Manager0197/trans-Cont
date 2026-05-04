@@ -15,6 +15,7 @@ export default function Camions() {
   
   const [showNew, setShowNew] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [errorHeader, setErrorHeader] = useState<string | null>(null);
   const [newCamion, setNewCamion] = useState({ numero: "", chauffeur: "", type: "interne" });
   
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -68,17 +69,23 @@ export default function Camions() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorHeader(null);
     if (!newCamion.numero || isSaving) return;
     setIsSaving(true);
     try {
-      await addDoc(collection(db, "camions"), {
-        ...newCamion,
+      const payload = {
+        numero: newCamion.numero.trim(),
+        chauffeur: (newCamion.chauffeur || "").trim() || "Sans chauffeur",
+        type: newCamion.type,
         statut: "actif",
         createdAt: new Date().toISOString()
-      });
+      };
+      await addDoc(collection(db, "camions"), payload);
       setShowNew(false);
       setNewCamion({ numero: "", chauffeur: "", type: "interne" });
-    } catch (err) { 
+    } catch (err: any) { 
+      console.error("Erreur lors de la création du camion:", err);
+      setErrorHeader("Impossible d'enregistrer le véhicule. Vérifiez votre connexion.");
       handleFirestoreError(err, OperationType.CREATE, "camions"); 
     } finally {
       setIsSaving(false);
@@ -88,7 +95,13 @@ export default function Camions() {
   const handleEdit = async (e: React.FormEvent, id: string) => {
     e.preventDefault();
     try {
-      await updateDoc(doc(db, "camions", id), { ...editForm, updatedAt: new Date().toISOString() });
+      const camionDoc = camions.find(c => c.id === id);
+      const payload: any = { 
+        ...editForm, 
+        statut: camionDoc?.statut || "actif",
+        updatedAt: new Date().toISOString() 
+      };
+      await updateDoc(doc(db, "camions", id), payload);
       setIsEditing(null);
     } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `camions/${id}`); }
   };
@@ -131,18 +144,23 @@ export default function Camions() {
 
   const handleCreateMaintenance = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!showMaintModal || !newMaint.cout || !newMaint.type || isSavingMaint) return;
+    if (!showMaintModal || newMaint.cout === "" || !newMaint.type || isSavingMaint) return;
     setIsSavingMaint(true);
     try {
-      await addDoc(collection(db, "maintenances"), {
-        ...newMaint,
+      const costValue = Number(newMaint.cout);
+      const payload = {
         camionId: showMaintModal,
-        cout: Number(newMaint.cout),
+        type: newMaint.type,
+        description: (newMaint.description || "").trim(),
+        cout: costValue,
+        dateIntervention: newMaint.dateIntervention,
         createdAt: new Date().toISOString()
-      });
+      };
+      await addDoc(collection(db, "maintenances"), payload);
       setShowMaintModal(null);
       setNewMaint({ type: "", description: "", cout: "", dateIntervention: new Date().toISOString().split('T')[0] });
     } catch (err) { 
+      console.error("Erreur lors de la création de la maintenance:", err);
       handleFirestoreError(err, OperationType.CREATE, "maintenances"); 
     } finally {
       setIsSavingMaint(false);
@@ -224,48 +242,84 @@ export default function Camions() {
       )}
 
       {showNew && (
-        <form onSubmit={handleCreate} className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2rem] lg:rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-4 gap-6 animate-in slide-in-from-top-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type Flotte</label>
-            <select 
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-              value={newCamion.type}
-              onChange={e => setNewCamion({...newCamion, type: e.target.value})}
-            >
-              <option value="interne">🚛 Flotte Interne</option>
-              <option value="externe">🤝 Partenaire Externe</option>
-            </select>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => !isSaving && setShowNew(false)} />
+          <div className="relative bg-white dark:bg-slate-900 w-full max-w-xl rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in zoom-in-95">
+            <form onSubmit={handleCreate}>
+              <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
+                <div>
+                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1">Nouvel Actif</p>
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Ajouter un Véhicule</h3>
+                </div>
+                <button type="button" onClick={() => setShowNew(false)} disabled={isSaving} className="p-3 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all">
+                  <XIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              {errorHeader && (
+                <div className="mx-8 mt-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-rose-600">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <p className="text-xs font-bold">{errorHeader}</p>
+                </div>
+              )}
+
+              <div className="p-8 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type de Flotte</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewCamion({...newCamion, type: 'interne'})}
+                      className={`py-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 transition-all ${newCamion.type === 'interne' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-50 border-slate-100 text-slate-500'}`}
+                    >
+                      🚛 Interne
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewCamion({...newCamion, type: 'externe'})}
+                      className={`py-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 transition-all ${newCamion.type === 'externe' ? 'bg-amber-500 border-amber-400 text-slate-900 shadow-lg shadow-amber-500/20' : 'bg-slate-50 border-slate-100 text-slate-500'}`}
+                    >
+                      🤝 Externe
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Immatriculation / Numéro de Parc</label>
+                  <input 
+                    placeholder="Ex: AA-123-BB" 
+                    required 
+                    autoFocus
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-6 py-4 font-black text-lg text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                    value={newCamion.numero} 
+                    onChange={e => setNewCamion({...newCamion, numero: e.target.value})} 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Chauffeur / Contact Responsable</label>
+                  <input 
+                    placeholder="Nom complet du chauffeur..." 
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-6 py-4 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newCamion.chauffeur} 
+                    onChange={e => setNewCamion({...newCamion, chauffeur: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div className="p-8 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-50 dark:border-slate-800 flex gap-4">
+                <button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className="flex-1 bg-emerald-500 text-white font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {isSaving ? "Enregistrement en cours..." : "Confirmer l'Ajout"}
+                </button>
+                <button type="button" onClick={() => setShowNew(false)} disabled={isSaving} className="px-8 py-5 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:text-rose-500 transition-colors">Annuler</button>
+              </div>
+            </form>
           </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Immatriculation / Nom</label>
-            <input 
-              placeholder="Ex: AA-123-BB" 
-              required 
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-              value={newCamion.numero} 
-              onChange={e => setNewCamion({...newCamion, numero: e.target.value})} 
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Chauffeur / Contact</label>
-            <input 
-              placeholder="Nom du chauffeur" 
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-              value={newCamion.chauffeur} 
-              onChange={e => setNewCamion({...newCamion, chauffeur: e.target.value})} 
-            />
-          </div>
-          <div className="flex gap-2 items-end">
-            <button 
-              type="submit" 
-              disabled={isSaving}
-              className="flex-1 bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest py-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-colors disabled:opacity-50"
-            >
-              {isSaving ? "Enregistrement..." : "Enregistrer"}
-            </button>
-            <button type="button" onClick={() => setShowNew(false)} disabled={isSaving} className="px-6 py-4 text-slate-400 font-black uppercase text-[10px] hover:text-rose-500 transition-colors">Annuler</button>
-          </div>
-        </form>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-8">
