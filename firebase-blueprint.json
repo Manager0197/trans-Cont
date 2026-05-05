@@ -74,9 +74,22 @@
         "description": { "type": "string", "description": "Détails de l'intervention ou observation" },
         "cout": { "type": "number", "description": "Montant de la dépense ou coût de réparation" },
         "dateIntervention": { "type": "string", "format": "date" },
+        "statutApproval": { "type": "string", "enum": ["en_attente", "approuvé", "rejeté"] },
+        "approvedBy": { "type": "string", "description": "ID de l'utilisateur ayant approuvé" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["camionId", "type", "cout", "dateIntervention", "createdAt"]
+      "required": ["camionId", "type", "cout", "dateIntervention", "statutApproval", "createdAt"]
+    },
+    "User": {
+      "title": "Utilisateur",
+      "description": "Profil utilisateur avec rôle d'accès.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["secretaria", "logistique"] },
+        "displayName": { "type": "string" }
+      },
+      "required": ["email", "role"]
     },
     "Partenaire": {
       "title": "Partenaire",
@@ -102,6 +115,7 @@
     }
   },
   "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "Profils des utilisateurs" },
     "/dossiers/{dossierId}": { "schema": "Dossier", "description": "Dossiers BL" },
     "/conteneurs/{conteneurId}": { "schema": "Conteneur", "description": "Unités physiques" },
     "/chargements/{chargementId}": { "schema": "Chargement", "description": "Transactions de transport" },

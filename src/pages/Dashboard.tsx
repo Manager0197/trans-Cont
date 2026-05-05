@@ -1,13 +1,16 @@
 import { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Truck, FolderOpen, DollarSign, AlertCircle, Filter, Calendar, Search } from "lucide-react";
+import { Truck, FolderOpen, DollarSign, AlertCircle, Calendar, Search } from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
+import { useAuth } from "../lib/auth";
+import { cn } from "../lib/utils";
 
 import { useSettings } from "../hooks/useSettings";
 
 export default function Dashboard() {
   const { settings } = useSettings();
+  const { role } = useAuth();
   
   const [dossiers, setDossiers] = useState<any[]>([]);
   const [conteneurs, setConteneurs] = useState<any[]>([]);
@@ -133,11 +136,15 @@ export default function Dashboard() {
         <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight">Vue d'ensemble et suivi consolidé de l'ensemble des dossiers BL</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+      <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-6 mb-12", role === 'secretaria' ? "lg:grid-cols-4" : "lg:grid-cols-2")}>
         <StatCard title="Dossiers Actifs" value={stats.dossiersActifs} icon={FolderOpen} color="bg-blue-600" />
         <StatCard title="Chargements (7j)" value={stats.chargementsSemaine} icon={Truck} color="bg-slate-800" />
-        <StatCard title="Créances à Solder" value={`${stats.montantDu.toLocaleString()} ${settings.devise}`} icon={DollarSign} color="bg-emerald-600" />
-        <StatCard title="Créances Échues" value={stats.creancesEchues} icon={AlertCircle} color="bg-rose-600" highlight={stats.creancesEchues > 0} />
+        {role === 'secretaria' && (
+          <>
+            <StatCard title="Créances à Solder" value={`${stats.montantDu.toLocaleString()} ${settings.devise}`} icon={DollarSign} color="bg-emerald-600" />
+            <StatCard title="Créances Échues" value={stats.creancesEchues} icon={AlertCircle} color="bg-rose-600" highlight={stats.creancesEchues > 0} />
+          </>
+        )}
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-[2rem] lg:rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 p-4 sm:p-6 lg:p-8">
@@ -206,9 +213,13 @@ export default function Dashboard() {
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Conteneurs</th>
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Transp. (Int / Ext)</th>
-                <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Montant Global</th>
-                <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Paiement / Réglement</th>
-                <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Reste à Payer</th>
+                {role === 'secretaria' && (
+                  <>
+                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Montant Global</th>
+                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Paiement / Réglement</th>
+                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Reste à Payer</th>
+                  </>
+                )}
                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Statut</th>
               </tr>
             </thead>
@@ -251,26 +262,30 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </td>
-                    <td className="p-4 text-right">
-                      <span className="font-black text-slate-900 dark:text-white">
-                        {doc.montantTotal.toLocaleString()} <span className="text-slate-400 font-bold text-xs">{settings.devise}</span>
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex flex-col items-end">
-                        <span className={`text-[10px] font-black uppercase tracking-tighter ${doc.statusGlobalPaiement === 'paye' ? 'text-emerald-500' : 'text-slate-500'}`}>
-                          {doc.statusGlobalPaiement === 'paye' ? 'Montant Soldé' : 'Avance'}
-                        </span>
-                        <div className="font-black text-slate-900 dark:text-white">
-                          {doc.montantPaye.toLocaleString()} <span className="text-slate-400 font-bold text-xs">{settings.devise}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <span className={`font-black ${doc.montantDu > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
-                        {doc.montantDu.toLocaleString()} <span className="opacity-50 font-bold text-xs">{settings.devise}</span>
-                      </span>
-                    </td>
+                    {role === 'secretaria' && (
+                      <>
+                        <td className="p-4 text-right">
+                          <span className="font-black text-slate-900 dark:text-white">
+                            {doc.montantTotal.toLocaleString()} <span className="text-slate-400 font-bold text-xs">{settings.devise}</span>
+                          </span>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex flex-col items-end">
+                            <span className={`text-[10px] font-black uppercase tracking-tighter ${doc.statusGlobalPaiement === 'paye' ? 'text-emerald-500' : 'text-slate-500'}`}>
+                              {doc.statusGlobalPaiement === 'paye' ? 'Montant Soldé' : 'Avance'}
+                            </span>
+                            <div className="font-black text-slate-900 dark:text-white">
+                              {doc.montantPaye.toLocaleString()} <span className="text-slate-400 font-bold text-xs">{settings.devise}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 text-right">
+                          <span className={`font-black ${doc.montantDu > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                            {doc.montantDu.toLocaleString()} <span className="opacity-50 font-bold text-xs">{settings.devise}</span>
+                          </span>
+                        </td>
+                      </>
+                    )}
                     <td className="p-4 text-center">
                       {doc.montantTotal === 0 ? (
                         <span className="px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest bg-slate-100 text-slate-500 dark:bg-slate-800">

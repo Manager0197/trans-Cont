@@ -2,12 +2,15 @@ import React, { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Truck, Plus, Check, X as XIcon, Trash2, Edit2, LayoutDashboard, DollarSign, AlertCircle, TrendingUp, Wrench, History, Calendar, Box } from "lucide-react";
+import { cn } from "../lib/utils";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import { useSettings } from "../hooks/useSettings";
+import { useAuth } from "../lib/auth";
 import ConfirmModal from "../components/ConfirmModal";
 
 export default function Camions() {
   const { settings } = useSettings();
+  const { role, user } = useAuth();
   const [camions, setCamions] = useState<any[]>([]);
   const [chargements, setChargements] = useState<any[]>([]);
   const [dossiers, setDossiers] = useState<any[]>([]);
@@ -137,7 +140,9 @@ export default function Camions() {
     }).length;
     
     const ca = filtered.reduce((sum, ch) => sum + (Number(ch.prixTotal) || 0), 0);
-    const totalMaint = maintFiltered.reduce((sum, m) => sum + (Number(m.cout) || 0), 0);
+    const totalMaint = maintFiltered
+      .filter(m => m.statutApproval === 'approuvé' || m.statutApproval === undefined)
+      .reduce((sum, m) => sum + (Number(m.cout) || 0), 0);
     const profitNet = ca - totalMaint;
     
     return { cumulativeVolume, monthlyActivity, ca, totalMaint, profitNet };
@@ -155,6 +160,8 @@ export default function Camions() {
         description: (newMaint.description || "").trim(),
         cout: costValue,
         dateIntervention: newMaint.dateIntervention,
+        statutApproval: role === 'secretaria' ? 'approuvé' : 'en_attente',
+        createdBy: user?.uid,
         createdAt: new Date().toISOString()
       };
       await addDoc(collection(db, "maintenances"), payload);
@@ -165,6 +172,30 @@ export default function Camions() {
       handleFirestoreError(err, OperationType.CREATE, "maintenances"); 
     } finally {
       setIsSavingMaint(false);
+    }
+  };
+
+  const handleApproveMaint = async (maintId: string) => {
+    try {
+      await updateDoc(doc(db, "maintenances", maintId), {
+        statutApproval: 'approuvé',
+        approvedBy: user?.uid,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `maintenances/${maintId}`);
+    }
+  };
+
+  const handleRejectMaint = async (maintId: string) => {
+    try {
+      await updateDoc(doc(db, "maintenances", maintId), {
+        statutApproval: 'rejeté',
+        rejectedBy: user?.uid,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `maintenances/${maintId}`);
     }
   };
 
@@ -200,7 +231,6 @@ export default function Camions() {
         </div>
       </div>
 
-      {/* Tabs Switcher */}
       <div className="bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex w-full max-w-md mx-auto sm:mx-0 shadow-inner">
         <button
           onClick={() => setActiveTab("interne")}
@@ -216,7 +246,6 @@ export default function Camions() {
         </button>
       </div>
 
-      {/* Missions Internes en Attente */}
       {activeTab === "interne" && pendingMissions.length > 0 && (
         <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-[2rem] p-8 space-y-6">
           <div className="flex items-center gap-3">
@@ -425,11 +454,11 @@ export default function Camions() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 lg:grid-cols-4">
+              <div className={cn("grid grid-cols-2", role === 'secretaria' ? "lg:grid-cols-4" : "lg:grid-cols-2")}>
                  <StatBox label="Missions" value={stats.cumulativeVolume} icon={LayoutDashboard} />
-                 <StatBox label="CA Brut" value={`${(stats.ca/1000).toFixed(1)}K`} sub={settings.devise} highlight icon={TrendingUp} />
+                 {role === 'secretaria' && <StatBox label="CA Brut" value={`${(stats.ca/1000).toFixed(1)}K`} sub={settings.devise} highlight icon={TrendingUp} />}
                  <StatBox label="Maintenance" value={`${(stats.totalMaint/1000).toFixed(1)}K`} sub={settings.devise} icon={Wrench} variant="danger" />
-                 <StatBox label="Profit Net" value={`${(stats.profitNet/1000).toFixed(1)}K`} sub={settings.devise} icon={DollarSign} variant="success" />
+                 {role === 'secretaria' && <StatBox label="Profit Net" value={`${(stats.profitNet/1000).toFixed(1)}K`} sub={settings.devise} icon={DollarSign} variant="success" />}
               </div>
               
               <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-950/30 flex items-center justify-between gap-4">
@@ -456,27 +485,60 @@ export default function Camions() {
                    </h4>
                    <div className="space-y-3">
                      {maintenances.filter(m => m.camionId === c.id).map(m => (
-                       <div key={m.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 hover:border-blue-500/30 transition-all">
-                          <div className="flex items-center gap-4">
-                             <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                               <Wrench className="w-4 h-4 text-blue-500" />
-                             </div>
-                             <div>
-                               <p className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">{m.type}</p>
-                               <p className="text-[10px] text-slate-500 font-medium">{m.description || "Aucun détail saisi."}</p>
-                             </div>
-                          </div>
-                          <div className="flex items-center gap-6 mt-4 sm:mt-0">
-                             <div className="text-right">
-                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Date</p>
-                               <p className="font-bold text-xs">{new Date(m.dateIntervention).toLocaleDateString('fr-FR')}</p>
-                             </div>
-                             <div className="text-right px-4 py-1.5 bg-rose-500/10 rounded-lg">
-                               <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest leading-none mb-1">Coût</p>
-                               <p className="font-black text-rose-500 tabular-nums">{Number(m.cout).toLocaleString()} {settings.devise}</p>
-                             </div>
-                          </div>
-                       </div>
+                       <div key={m.id} className={cn(
+                        "flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border transition-all",
+                        m.statutApproval === 'en_attente' ? "border-amber-200 bg-amber-50/30" : "border-slate-100 dark:border-slate-800 hover:border-blue-500/30"
+                      )}>
+                           <div className="flex items-center gap-4">
+                              <div className={cn(
+                                "p-2 rounded-lg shadow-sm font-black",
+                                m.statutApproval === 'en_attente' ? "bg-amber-100" : "bg-white dark:bg-slate-800"
+                              )}>
+                                <Wrench className={cn("w-4 h-4 text-blue-500", m.statutApproval === 'en_attente' && "text-amber-500")} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">{m.type}</p>
+                                  {m.statutApproval === 'en_attente' && (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[7px] font-black uppercase tracking-widest">En attente</span>
+                                  )}
+                                  {m.statutApproval === 'rejeté' && (
+                                    <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[7px] font-black uppercase tracking-widest">Rejeté</span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-medium">{m.description || "Aucun détail saisi."}</p>
+                              </div>
+                           </div>
+                           <div className="flex items-center gap-6 mt-4 sm:mt-0">
+                              <div className="text-right">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Date</p>
+                                <p className="font-bold text-xs">{new Date(m.dateIntervention).toLocaleDateString('fr-FR')}</p>
+                              </div>
+                              <div className="text-right px-4 py-1.5 bg-rose-500/10 rounded-lg">
+                                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest leading-none mb-1">Coût</p>
+                                <p className="font-black text-rose-500 tabular-nums">{Number(m.cout).toLocaleString()} {settings.devise}</p>
+                              </div>
+
+                              {role === 'secretaria' && m.statutApproval === 'en_attente' && (
+                                <div className="flex gap-1 ml-4 border-l border-slate-200 pl-4">
+                                  <button 
+                                    onClick={() => handleApproveMaint(m.id)}
+                                    className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+                                    title="Approuver la dépense"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleRejectMaint(m.id)}
+                                    className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shadow-lg shadow-rose-500/20"
+                                    title="Rejeter la dépense"
+                                  >
+                                    <XIcon className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                           </div>
+                        </div>
                      ))}
                      {maintenances.filter(m => m.camionId === c.id).length === 0 && (
                        <div className="py-10 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest italic">
@@ -497,7 +559,6 @@ export default function Camions() {
         )}
       </div>
 
-      {/* Maintenance Entry Modal */}
       {showMaintModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowMaintModal(null)} />

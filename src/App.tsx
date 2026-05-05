@@ -33,19 +33,22 @@ function Logo({ className }: { className?: string }) {
 }
 
 function Sidebar({ isOpen, setIsOpen, logOut, user, theme, toggleTheme }: { isOpen: boolean; setIsOpen: (v: boolean) => void; logOut: () => void; user: any; theme: string; toggleTheme: () => void }) {
+  const { role } = useAuth();
   const location = useLocation();
   
-  const navItems = [
-    { path: "/", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/operations", label: "Portail Opérations", icon: ShieldCheck },
-    { path: "/dossiers", label: "Dossiers BL", icon: FolderOpen },
-    { path: "/conteneurs", label: "Inventaire EVP", icon: Box },
-    { path: "/flotte", label: "Gestion Flotte", icon: Truck },
-    { path: "/finances", label: "Flux Trésorerie", icon: DollarSign },
-    { path: "/rapports", label: "Executive Board", icon: FileBarChart },
-    { path: "/guide", label: "Guide d'Utilisation", icon: BookOpen },
-    { path: "/parametres", label: "Configuration", icon: Settings },
+  const allNavItems = [
+    { path: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["secretaria", "logistique"] },
+    { path: "/operations", label: "Portail Opérations", icon: ShieldCheck, roles: ["secretaria", "logistique"] },
+    { path: "/dossiers", label: "Dossiers BL", icon: FolderOpen, roles: ["secretaria"] },
+    { path: "/conteneurs", label: "Inventaire EVP", icon: Box, roles: ["secretaria"] },
+    { path: "/flotte", label: "Gestion Flotte", icon: Truck, roles: ["secretaria", "logistique"] },
+    { path: "/finances", label: "Flux Trésorerie", icon: DollarSign, roles: ["secretaria"] },
+    { path: "/rapports", label: "Executive Board", icon: FileBarChart, roles: ["secretaria"] },
+    { path: "/guide", label: "Guide d'Utilisation", icon: BookOpen, roles: ["secretaria", "logistique"] },
+    { path: "/parametres", label: "Configuration", icon: Settings, roles: ["secretaria"] },
   ];
+
+  const navItems = allNavItems.filter(item => role && item.roles.includes(role));
 
   return (
     <>
@@ -103,12 +106,14 @@ function Sidebar({ isOpen, setIsOpen, logOut, user, theme, toggleTheme }: { isOp
               {user?.email?.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white truncate tracking-tight">{user?.email?.split('@')[0]}</p>
-              <div className="flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                <span className="text-[8px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Accès Administrateur</span>
-              </div>
-            </div>
+               <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white truncate tracking-tight">{user?.email?.split('@')[0]}</p>
+               <div className="flex items-center gap-1">
+                 {role === 'secretaria' ? <ShieldCheck className="w-3 h-3 text-emerald-500" /> : <Truck className="w-3 h-3 text-blue-500" />}
+                 <span className="text-[8px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                   {role === 'secretaria' ? "Accès Secrétariat" : "Gestion Logistique"}
+                 </span>
+               </div>
+             </div>
           </div>
           <button 
             onClick={logOut}
@@ -123,14 +128,17 @@ function Sidebar({ isOpen, setIsOpen, logOut, user, theme, toggleTheme }: { isOp
   );
 }
 
-function BottomNav() {
+function BottomNav({ role }: { role: any }) {
   const location = useLocation();
-  const navItems = [
-    { path: "/", short: "Home", icon: LayoutDashboard },
-    { path: "/dossiers", short: "Dossiers", icon: FolderOpen },
-    { path: "/flotte", short: "Flotte", icon: Truck },
-    { path: "/finances", short: "Finances", icon: DollarSign },
+  const allNavItems = [
+    { path: "/", short: "Home", icon: LayoutDashboard, roles: ["secretaria", "logistique"] },
+    { path: "/dossiers", short: "Dossiers", icon: FolderOpen, roles: ["secretaria"] },
+    { path: "/operations", short: "Opérations", icon: ShieldCheck, roles: ["logistique"] },
+    { path: "/flotte", short: "Flotte", icon: Truck, roles: ["secretaria", "logistique"] },
+    { path: "/finances", short: "Finances", icon: DollarSign, roles: ["secretaria"] },
   ];
+
+  const navItems = allNavItems.filter(item => role && item.roles.includes(role));
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-around items-center z-40 pb-safe transition-colors duration-300">
@@ -156,7 +164,7 @@ function BottomNav() {
 }
 
 function AppContent() {
-  const { user, loading, signIn, signInEmail, logOut } = useAuth();
+  const { user, role, loading, signIn, signInEmail, logOut } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
@@ -171,7 +179,7 @@ function AppContent() {
       await signInEmail(loginForm.username, loginForm.password);
     } catch (err: any) {
       if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-        setLoginError("Identifiants incorrects (admin ou transporteur / 123456)");
+        setLoginError("Identifiants incorrects (Voir accès démo ci-dessous)");
       } else if (err.code === "auth/operation-not-allowed") {
         setLoginError("Connexion par email non activée sur Firebase");
       } else {
@@ -223,7 +231,7 @@ function AppContent() {
             <div className="space-y-2">
               <input 
                 type="text" 
-                placeholder="Identifiant (admin ou transporteur)"
+                placeholder="Identifiant (ex: admin@translog.com)"
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl px-6 py-4 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
                 value={loginForm.username}
                 onChange={e => setLoginForm({...loginForm, username: e.target.value})}
@@ -237,6 +245,14 @@ function AppContent() {
                 onChange={e => setLoginForm({...loginForm, password: e.target.value})}
                 required
               />
+            </div>
+            
+            <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 text-left">
+              <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">Accès Démo :</p>
+              <div className="space-y-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                <p>Secrétariat : <span className="text-slate-900 dark:text-white">admin@translog.com</span> / <span className="text-slate-900 dark:text-white">admin123</span></p>
+                <p>Logistique : <span className="text-slate-900 dark:text-white">logistique@translog.com</span> / <span className="text-slate-900 dark:text-white">logistique123</span></p>
+              </div>
             </div>
 
             {loginError && (
@@ -277,15 +293,6 @@ function AppContent() {
     );
   }
 
-  // Intercept the transporteur route
-  if (user.email === 'transporteur@translog-pro.com' || user.email === 'flotte@translog-pro.com') {
-    return (
-      <ErrorBoundary>
-        <PortailOperations />
-      </ErrorBoundary>
-    )
-  }
-
   return (
     <Router>
       <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300 font-sans tracking-tight">
@@ -301,16 +308,20 @@ function AppContent() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/operations" element={<PortailOperations />} />
-              <Route path="/dossiers" element={<Dossiers />} />
-              <Route path="/conteneurs" element={<Conteneurs />} />
+              {role === 'secretaria' && (
+                <>
+                  <Route path="/dossiers" element={<Dossiers />} />
+                  <Route path="/conteneurs" element={<Conteneurs />} />
+                  <Route path="/finances" element={<Finances />} />
+                  <Route path="/rapports" element={<Rapports />} />
+                  <Route path="/parametres" element={<Parametres />} />
+                </>
+              )}
               <Route path="/flotte" element={<Camions />} />
-              <Route path="/finances" element={<Finances />} />
-              <Route path="/rapports" element={<Rapports />} />
               <Route path="/guide" element={<Guide />} />
-              <Route path="/parametres" element={<Parametres />} />
             </Routes>
           </main>
-          <BottomNav />
+          <BottomNav role={role} />
         </div>
       </div>
     </Router>
