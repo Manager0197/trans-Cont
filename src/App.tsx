@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
-import { LayoutDashboard, FolderOpen, Truck, DollarSign, FileBarChart, Menu, X, LogOut, Box, Moon, Sun, ShieldCheck, BookOpen } from "lucide-react";
+import { LayoutDashboard, FolderOpen, Truck, DollarSign, FileBarChart, Menu, X, LogOut, Box, Moon, Sun, ShieldCheck, BookOpen, Eye, EyeOff } from "lucide-react";
 import { cn } from "./lib/utils";
 import Dashboard from "./pages/Dashboard";
 import Dossiers from "./pages/Dossiers";
@@ -168,6 +168,7 @@ function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -237,14 +238,23 @@ function AppContent() {
                 onChange={e => setLoginForm({...loginForm, username: e.target.value})}
                 required
               />
-              <input 
-                type="password" 
-                placeholder="Mot de passe"
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl px-6 py-4 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
-                value={loginForm.password}
-                onChange={e => setLoginForm({...loginForm, password: e.target.value})}
-                required
-              />
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Mot de passe"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl px-6 py-4 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 pr-14"
+                  value={loginForm.password}
+                  onChange={e => setLoginForm({...loginForm, password: e.target.value})}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
             
             <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 text-left">
