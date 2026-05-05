@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Truck, Plus, Check, X as XIcon, Trash2, Edit2, LayoutDashboard, DollarSign, AlertCircle, TrendingUp, Wrench, History, Calendar, Box } from "lucide-react";
+import { Truck, Plus, Check, X as XIcon, Trash2, Edit2, LayoutDashboard, DollarSign, AlertCircle, TrendingUp, Wrench, History, Calendar, Box, ChevronDown, ChevronUp, FolderOpen } from "lucide-react";
 import { cn } from "../lib/utils";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import { useSettings } from "../hooks/useSettings";
@@ -27,6 +27,7 @@ export default function Camions() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"interne" | "externe">("interne");
   const [assigningLoading, setAssigningLoading] = useState<string | null>(null);
+  const [expandedDossiers, setExpandedDossiers] = useState<string[]>([]);
 
   // Maintenance state
   const [showMaintModal, setShowMaintModal] = useState<string | null>(null);
@@ -55,6 +56,25 @@ export default function Camions() {
   }, []);
 
   const pendingMissions = chargements.filter(ch => ch.typeTransporteur === 'interne' && !ch.camionId);
+
+  const groupedPending = React.useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+    pendingMissions.forEach(m => {
+      if (!groups[m.dossierId]) groups[m.dossierId] = [];
+      groups[m.dossierId].push(m);
+    });
+    return Object.entries(groups).map(([dossierId, missions]) => ({
+      dossierId,
+      dossier: dossiers.find(d => d.id === dossierId),
+      missions
+    })).filter(g => g.dossier);
+  }, [pendingMissions, dossiers]);
+
+  const toggleDossier = (id: string) => {
+    setExpandedDossiers(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
 
   const handleAssignCamion = async (chargementId: string, camionId: string) => {
     if (!camionId) return;
@@ -246,50 +266,77 @@ export default function Camions() {
         </button>
       </div>
 
-      {activeTab === "interne" && pendingMissions.length > 0 && (
+      {activeTab === "interne" && groupedPending.length > 0 && (
         <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-[2rem] p-8 space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-black text-amber-900 dark:text-amber-400 uppercase tracking-tighter">Missions Internes en Attente</h2>
-              <p className="text-amber-700/60 dark:text-amber-500/60 text-[10px] font-bold uppercase tracking-widest">{pendingMissions.length} conteneur(s) interne(s) à assigner</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-amber-900 dark:text-amber-400 uppercase tracking-tighter">Missions Internes en Attente</h2>
+                <p className="text-amber-700/60 dark:text-amber-500/60 text-[10px] font-bold uppercase tracking-widest">{pendingMissions.length} conteneur(s) à assigner sur {groupedPending.length} dossier(s)</p>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pendingMissions.map(miss => {
-              const dossier = dossiers.find(d => d.id === miss.dossierId);
-              return (
-                <div key={miss.id} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-amber-200/50 dark:border-amber-800/30 shadow-sm flex flex-col gap-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Conteneur</p>
-                      <h4 className="font-black text-slate-900 dark:text-white uppercase">{miss.numeroConteneur}</h4>
+          <div className="space-y-3">
+            {groupedPending.map(({ dossierId, dossier, missions }) => (
+              <div key={dossierId} className="bg-white dark:bg-slate-900 rounded-2xl border border-amber-200/50 dark:border-amber-800/30 shadow-sm overflow-hidden transition-all">
+                <button 
+                  onClick={() => toggleDossier(dossierId)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-amber-50/50 dark:hover:bg-amber-900/5 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                      <FolderOpen className="w-4 h-4 text-amber-600" />
                     </div>
-                    <div className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-[10px] font-bold text-slate-500 uppercase">
-                      BL #{dossier?.numeroBL || "???"}
+                    <div className="text-left">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Dossier BL #{dossier?.numeroBL}</p>
+                      <h4 className="font-bold text-slate-900 dark:text-white uppercase text-sm">{dossier?.client || "Client Inconnu"}</h4>
                     </div>
                   </div>
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-black rounded-lg">
+                      {missions.length} CONTENEUR(S)
+                    </span>
+                    {expandedDossiers.includes(dossierId) ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                  </div>
+                </button>
 
-                  <div>
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Assigner à la Flotte :</label>
-                    <select 
-                      disabled={assigningLoading === miss.id}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50"
-                      onChange={(e) => handleAssignCamion(miss.id, e.target.value)}
-                      value=""
-                    >
-                      <option value="">Choisir un camion...</option>
-                      {camions.filter(c => c.statut === 'actif' && c.type !== 'externe').map(c => (
-                        <option key={c.id} value={c.id}>{c.numero} - {c.chauffeur}</option>
-                      ))}
-                    </select>
+                {expandedDossiers.includes(dossierId) && (
+                  <div className="p-4 pt-0 border-t border-slate-50 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 animate-in slide-in-from-top-2">
+                    {missions.map(miss => (
+                      <div key={miss.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3 mt-4">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">N° Conteneur</p>
+                            <h5 className="font-black text-slate-900 dark:text-white uppercase text-xs">{miss.numeroConteneur}</h5>
+                          </div>
+                          <div className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded text-[8px] font-black text-blue-600 uppercase">
+                            {miss.taille}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Assigner Véhicule :</label>
+                          <select 
+                            disabled={assigningLoading === miss.id}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-lg px-3 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50"
+                            onChange={(e) => handleAssignCamion(miss.id, e.target.value)}
+                            value=""
+                          >
+                            <option value="">Choisir...</option>
+                            {camions.filter(c => c.statut === 'actif' && c.type !== 'externe').map(c => (
+                              <option key={c.id} value={c.id}>{c.numero} - {c.chauffeur}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -460,6 +507,38 @@ export default function Camions() {
                  <StatBox label="Maintenance" value={`${(stats.totalMaint/1000).toFixed(1)}K`} sub={settings.devise} icon={Wrench} variant="danger" />
                  {role === 'secretaria' && <StatBox label="Profit Net" value={`${(stats.profitNet/1000).toFixed(1)}K`} sub={settings.devise} icon={DollarSign} variant="success" />}
               </div>
+
+              {chargements.filter(ch => ch.camionId === c.id).length > 0 && (
+                <div className="px-8 py-4 border-t border-slate-50 dark:border-slate-800 bg-slate-50/20">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Missions en cours (Par Dossier)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(
+                      chargements
+                        .filter(ch => ch.camionId === c.id)
+                        .reduce((acc: any, ch) => {
+                          if (!acc[ch.dossierId]) acc[ch.dossierId] = [];
+                          acc[ch.dossierId].push(ch);
+                          return acc;
+                        }, {})
+                    ).map(([dId, missions]: [string, any]) => {
+                      const dossier = dossiers.find(d => d.id === dId);
+                      return (
+                        <div key={dId} className="bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center gap-3 shadow-sm">
+                          <div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                            <FolderOpen className="w-3 h-3 text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-0.5">BL #{dossier?.numeroBL || "???"}</p>
+                            <p className="text-[10px] font-bold text-slate-700 dark:text-white leading-none">
+                              {missions.length} conteneur(s)
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               
               <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-950/30 flex items-center justify-between gap-4">
                  <div className="flex gap-2">

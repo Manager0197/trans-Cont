@@ -88,30 +88,6 @@ export default function Parametres() {
           </h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium">Pilotage des variables fiscales et onboarding des prestataires</p>
         </div>
-        <button 
-          onClick={async () => {
-            if (!window.confirm("🔴 ATTENTION : Voulez-vous vraiment TOUT EFFACER ? Cette action est irréversible et supprimera tous les dossiers, camions et transactions.")) return;
-            setIsSaving(true);
-            try {
-              const collectionsToClear = ["dossiers", "conteneurs", "chargements", "camions", "partenaires", "maintenances"];
-              for (const collName of collectionsToClear) {
-                const snap = await getDocs(collection(db, collName));
-                const batch = writeBatch(db);
-                snap.docs.forEach(d => batch.delete(d.ref));
-                await batch.commit();
-              }
-              window.alert("Base de données réinitialisée !");
-            } catch (err) {
-              handleFirestoreError(err, OperationType.DELETE, "réinitialisation");
-            } finally {
-              setIsSaving(false);
-            }
-          }}
-          disabled={isSaving}
-          className="bg-rose-100 text-rose-600 hover:bg-rose-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 disabled:opacity-50"
-        >
-          {isSaving ? "RAZ en cours..." : "Réinitialiser les données"}
-        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -249,11 +225,11 @@ export default function Parametres() {
       <div className="bg-rose-50 dark:bg-rose-950/20 p-10 rounded-[2.5rem] border border-rose-100 dark:border-rose-900/30 flex flex-col md:flex-row items-center justify-between gap-10">
         <div className="flex items-center gap-6">
           <div className="p-5 bg-rose-500 text-white rounded-2xl shadow-lg shadow-rose-500/20">
-             <Trash2 className="w-10 h-10" />
+             <Landmark className="w-10 h-10" />
           </div>
           <div>
-             <h3 className="text-2xl font-black uppercase tracking-tighter text-rose-600 dark:text-rose-500">Nettoyage Complet</h3>
-             <p className="text-slate-500 dark:text-slate-400 font-medium">Utilisez le bouton de réinitialisation en haut de la page pour vider la base.</p>
+             <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Indexation Comptable</h3>
+             <p className="text-slate-500 dark:text-slate-400 font-medium italic">Tous les paramètres fiscaux et tarifaires sont synchronisés en temps réel avec le grand livre.</p>
           </div>
         </div>
       </div>
