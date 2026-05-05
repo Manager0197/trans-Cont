@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Settings as SettingsIcon, Percent, CreditCard, Tag, Landmark, UserPlus, Trash2, Building2 } from "lucide-react";
-import { collection, onSnapshot, addDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, deleteDoc, doc, getDocs, writeBatch, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
+import ConfirmModal from "../components/ConfirmModal";
 
 export default function Parametres() {
   const [config, setConfig] = useState({
@@ -16,6 +17,8 @@ export default function Parametres() {
   const [newPartner, setNewPartner] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     // Load config from Firestore
@@ -40,13 +43,14 @@ export default function Parametres() {
 
   const handleSaveConfig = async () => {
     setIsSaving(true);
+    setSaveSuccess(false);
     try {
-      const { setDoc, doc } = await import("firebase/firestore");
       await setDoc(doc(db, "settings", "global"), {
         ...config,
         updatedAt: new Date().toISOString()
       }, { merge: true });
-      alert("Configuration sauvegardée avec succès !");
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, "settings/global");
     } finally {
@@ -84,6 +88,30 @@ export default function Parametres() {
           </h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium">Pilotage des variables fiscales et onboarding des prestataires</p>
         </div>
+        <button 
+          onClick={async () => {
+            if (!window.confirm("🔴 ATTENTION : Voulez-vous vraiment TOUT EFFACER ? Cette action est irréversible et supprimera tous les dossiers, camions et transactions.")) return;
+            setIsSaving(true);
+            try {
+              const collectionsToClear = ["dossiers", "conteneurs", "chargements", "camions", "partenaires", "maintenances"];
+              for (const collName of collectionsToClear) {
+                const snap = await getDocs(collection(db, collName));
+                const batch = writeBatch(db);
+                snap.docs.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+              }
+              window.alert("Base de données réinitialisée !");
+            } catch (err) {
+              handleFirestoreError(err, OperationType.DELETE, "réinitialisation");
+            } finally {
+              setIsSaving(false);
+            }
+          }}
+          disabled={isSaving}
+          className="bg-rose-100 text-rose-600 hover:bg-rose-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 disabled:opacity-50"
+        >
+          {isSaving ? "RAZ en cours..." : "Réinitialiser les données"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -212,10 +240,22 @@ export default function Parametres() {
         <button 
           onClick={handleSaveConfig}
           disabled={isSaving}
-          className="bg-white text-slate-900 px-12 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-slate-100 transition-all active:scale-95 shadow-xl shadow-white/10 relative z-10 disabled:opacity-50"
+          className={`px-12 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 shadow-xl relative z-10 disabled:opacity-50 ${saveSuccess ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-white text-slate-900 shadow-white/10 hover:bg-slate-100'}`}
         >
-          {isSaving ? "Enregistrement..." : "Soumettre les modifications"}
+          {isSaving ? "Enregistrement..." : saveSuccess ? "Sauvegardé ✓" : "Soumettre les modifications"}
         </button>
+      </div>
+
+      <div className="bg-rose-50 dark:bg-rose-950/20 p-10 rounded-[2.5rem] border border-rose-100 dark:border-rose-900/30 flex flex-col md:flex-row items-center justify-between gap-10">
+        <div className="flex items-center gap-6">
+          <div className="p-5 bg-rose-500 text-white rounded-2xl shadow-lg shadow-rose-500/20">
+             <Trash2 className="w-10 h-10" />
+          </div>
+          <div>
+             <h3 className="text-2xl font-black uppercase tracking-tighter text-rose-600 dark:text-rose-500">Nettoyage Complet</h3>
+             <p className="text-slate-500 dark:text-slate-400 font-medium">Utilisez le bouton de réinitialisation en haut de la page pour vider la base.</p>
+          </div>
+        </div>
       </div>
     </div>
   );

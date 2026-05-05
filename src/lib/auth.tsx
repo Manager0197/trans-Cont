@@ -84,11 +84,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInEmail = async (email: string, pass: string) => {
+    // Basic sanitization
+    const cleanEmail = (email || "").trim();
+    const cleanPass = (pass || "").trim();
+
+    if (!cleanEmail) throw new Error("L'identifiant est requis");
+
     // Demo bypass for the requested account
     let type: string | null = null;
-    if ((email === "admin" || email === "admin@translog.com") && (pass === "123456" || pass === "admin123")) type = 'admin';
-    else if ((email === "logistique" || email === "logistique@translog.com") && (pass === "123456" || pass === "logistique123")) type = 'flotte';
-    else if (email === "transporteur" && pass === "123456") type = 'transporteur';
+    if ((cleanEmail === "admin" || cleanEmail === "admin@translog.com") && (cleanPass === "123456" || cleanPass === "admin123")) type = 'admin';
+    else if ((cleanEmail === "logistique" || cleanEmail === "logistique@translog.com") && (cleanPass === "123456" || cleanPass === "logistique123")) type = 'flotte';
+    else if ((cleanEmail === "stagiaire" || cleanEmail === "stagiaire@translog.com") && (cleanPass === "123456" || cleanPass === "stagiaire123")) type = 'stagiaire';
+    else if (cleanEmail === "transporteur" && (cleanPass === "123456" || cleanPass === "transporteur123")) type = 'transporteur';
 
     if (type) {
       try {
@@ -97,10 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const demoUser = {
           ...cred.user,
           email: `${type}@translog-demo.com`,
-          displayName: type === 'admin' ? "Secrétariat PRO" : (type === 'flotte' ? "Logistique PRO" : "Transporteur PRO"),
+          displayName: type === 'admin' ? "Secrétariat PRO" : (type === 'flotte' ? "Logistique PRO" : (type === 'stagiaire' ? "Stagiaire PRO" : "Transporteur PRO")),
         } as User;
         setUser(demoUser);
-        setRole(type === 'admin' ? 'secretaria' : 'logistique');
+        setRole(type === 'admin' ? 'secretaria' : (type === 'stagiaire' ? 'stagiaire' : 'logistique'));
         setLoading(false);
         return;
       } catch (error: any) {
@@ -112,10 +119,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const demoUser = {
             email: `${type}@translog-demo.com`,
             uid: `local-demo-${type}`,
-            displayName: type === 'admin' ? "Secrétariat PRO (Local)" : (type === 'flotte' ? "Logistique PRO (Local)" : "Transporteur PRO (Local)"),
+            displayName: type === 'admin' ? "Secrétariat PRO (Local)" : (type === 'flotte' ? "Logistique PRO (Local)" : (type === 'stagiaire' ? "Stagiaire PRO (Local)" : "Transporteur PRO (Local)")),
           } as User;
           setUser(demoUser);
-          setRole(type === 'admin' ? 'secretaria' : 'logistique');
+          setRole(type === 'admin' ? 'secretaria' : (type === 'stagiaire' ? 'stagiaire' : 'logistique'));
           setLoading(false);
           // We don't re-throw, we allow local access with a warning
           return;
@@ -125,11 +132,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // If not a demo account, it must be a valid email format for Firebase
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      throw new Error("L'identifiant doit être un email valide (ex: admin@translog.com)");
+    }
+
     try {
       localStorage.removeItem('auth_demo_session');
-      const finalEmail = email.includes('@') ? email : `${email}@demo.com`;
-      await signInWithEmailAndPassword(auth, finalEmail, pass);
-    } catch (error) {
+      await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+    } catch (error: any) {
       console.error("Error signing in with email", error);
       throw error;
     }

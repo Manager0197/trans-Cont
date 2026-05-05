@@ -5,11 +5,13 @@ import { Plus, ChevronDown, ChevronUp, Truck, FolderOpen, Search, Trash2, Edit2,
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import ConfirmModal from "../components/ConfirmModal";
 import { cn } from "../lib/utils";
+import { useAuth } from "../lib/auth";
 
 import { useSettings } from "../hooks/useSettings";
 
 export default function Dossiers() {
   const { settings } = useSettings();
+  const { role } = useAuth();
   const [dossiers, setDossiers] = useState<any[]>([]);
   const [camions, setCamions] = useState<any[]>([]);
   const [partenaires, setPartenaires] = useState<any[]>([]);
@@ -216,18 +218,20 @@ export default function Dossiers() {
                 onChange={e => setNewDossier({...newDossier, client: e.target.value})}
               />
             </div>
-            <div className="w-full">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Vente Dossier (BL) ({settings.devise})</label>
-              <input 
-                type="number" 
-                placeholder="Ex: 500000"
-                required
-                className="w-full bg-slate-950 text-white border border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600 font-bold"
-                value={newDossier.prixContrat}
-                onFocus={e => e.target.select()}
-                onChange={e => setNewDossier({...newDossier, prixContrat: parseInt(e.target.value) || 0})}
-              />
-            </div>
+            {role === 'secretaria' && (
+              <div className="w-full">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Vente Dossier (BL) ({settings.devise})</label>
+                <input 
+                  type="number" 
+                  placeholder="Ex: 500000"
+                  required
+                  className="w-full bg-slate-950 text-white border border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600 font-bold"
+                  value={newDossier.prixContrat}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setNewDossier({...newDossier, prixContrat: parseInt(e.target.value) || 0})}
+                />
+              </div>
+            )}
             <div className="w-full">
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre de conteneurs</label>
@@ -403,6 +407,7 @@ interface DossierCardProps {
 
 function DossierCard({ dossier, camions }: DossierCardProps) {
   const { settings } = useSettings();
+  const { role } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [conteneurs, setConteneurs] = useState<any[]>([]);
   const [chargements, setChargements] = useState<any[]>([]);
@@ -546,12 +551,14 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                        <span className="text-blue-600 dark:text-blue-400 uppercase truncate max-w-[150px]">{dossier.client || "Client Inconnu"}</span>
                        <span className="text-slate-400 dark:text-slate-500">{new Date(dossier.createdAt).toLocaleDateString('fr-FR')}</span>
                     </div>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-                      className="p-1.5 text-blue-500 hover:bg-blue-500 hover:text-white rounded-lg transition-all"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
+                    {role === 'secretaria' && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                        className="p-1.5 text-blue-500 hover:bg-blue-500 hover:text-white rounded-lg transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </>
                 )}
                 <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] shadow-sm whitespace-nowrap ${dossier.statut === 'en_cours' ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}>
@@ -573,13 +580,15 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
           </div>
           
           <div className="flex items-center gap-4 sm:gap-6">
-            <button 
-              onClick={(e) => { e.stopPropagation(); setShowDeleteDossier(true); }}
-              className="p-3 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/20 rounded-xl transition-all shadow-sm"
-              title="Supprimer définitivement"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
+            {role === 'secretaria' && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowDeleteDossier(true); }}
+                className="p-3 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/20 rounded-xl transition-all shadow-sm"
+                title="Supprimer définitivement"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
             <div className="hidden lg:block w-48">
               <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase mb-1">
                 <span>Progression</span>
@@ -660,29 +669,33 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                  à {new Date(dossier.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                </p>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-4">Dépenses Logistiques</p>
-              <p className="text-xl font-black text-rose-500 tabular-nums">{stats.totalPrix.toLocaleString()} {settings.devise}</p>
-            </div>
-            <div 
-              className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-help hover:border-blue-500/50 transition-all group/avance"
-              title="Modifier les avances directement dans le tableau des chargements"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">Avances Décaissées</p>
-                <div className="p-1 bg-blue-50 dark:bg-blue-900/30 rounded-md">
-                  <Edit2 className="w-2.5 h-2.5 text-blue-500" />
+            {role === 'secretaria' && (
+              <>
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-4">Dépenses Logistiques</p>
+                  <p className="text-xl font-black text-rose-500 tabular-nums">{stats.totalPrix.toLocaleString()} {settings.devise}</p>
                 </div>
-              </div>
-              <p className="text-xl font-black text-blue-500 tabular-nums">{stats.totalAvance.toLocaleString()} {settings.devise}</p>
-              <p className="text-[8px] font-bold text-slate-400 uppercase mt-2 italic">Géré par transaction</p>
-            </div>
-            <div className="bg-slate-950 p-6 rounded-2xl border border-blue-500/20 shadow-lg shadow-blue-500/10">
-              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Profitabilité (NETTE)</p>
-              <p className={`text-xl font-black tabular-nums transition-colors ${stats.marge >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {stats.marge.toLocaleString()} {settings.devise}
-              </p>
-            </div>
+                <div 
+                  className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-help hover:border-blue-500/50 transition-all group/avance"
+                  title="Modifier les avances directement dans le tableau des chargements"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">Avances Décaissées</p>
+                    <div className="p-1 bg-blue-50 dark:bg-blue-900/30 rounded-md">
+                      <Edit2 className="w-2.5 h-2.5 text-blue-500" />
+                    </div>
+                  </div>
+                  <p className="text-xl font-black text-blue-500 tabular-nums">{stats.totalAvance.toLocaleString()} {settings.devise}</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase mt-2 italic">Géré par transaction</p>
+                </div>
+                <div className="bg-slate-950 p-6 rounded-2xl border border-blue-500/20 shadow-lg shadow-blue-500/10">
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Profitabilité (NETTE)</p>
+                  <p className={`text-xl font-black tabular-nums transition-colors ${stats.marge >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {stats.marge.toLocaleString()} {settings.devise}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
@@ -691,24 +704,28 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
               <h4 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tighter">Manifeste d'Expédition</h4>
             </div>
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-              <button 
-                onClick={(e) => { e.stopPropagation(); togglePaiementStatus(); }} 
-                className={cn(
-                  "flex-1 sm:flex-none text-[10px] px-4 py-2 rounded-lg font-black uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2",
-                  dossier.statutPaiementClient === "paye" 
-                    ? "bg-emerald-500 text-white hover:bg-emerald-600" 
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
-                )}
-              >
-                {dossier.statutPaiementClient === "paye" ? <CheckCircle2 className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
-                {dossier.statutPaiementClient === "paye" ? "Dossier Soldé" : "Marquer Soldé"}
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); toggleStatus(); }} 
-                className="flex-1 sm:flex-none text-xs px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-100 bg-white font-medium shadow-sm transition-colors"
-              >
-                {dossier.statut === 'en_cours' ? 'Clôturer Dossier' : 'Réouvrir Dossier'}
-              </button>
+              {role === 'secretaria' && (
+                <>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); togglePaiementStatus(); }} 
+                    className={cn(
+                      "flex-1 sm:flex-none text-[10px] px-4 py-2 rounded-lg font-black uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2",
+                      dossier.statutPaiementClient === "paye" 
+                        ? "bg-emerald-500 text-white hover:bg-emerald-600" 
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
+                    )}
+                  >
+                    {dossier.statutPaiementClient === "paye" ? <CheckCircle2 className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
+                    {dossier.statutPaiementClient === "paye" ? "Dossier Soldé" : "Marquer Soldé"}
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); toggleStatus(); }} 
+                    className="flex-1 sm:flex-none text-xs px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-100 bg-white font-medium shadow-sm transition-colors"
+                  >
+                    {dossier.statut === 'en_cours' ? 'Clôturer Dossier' : 'Réouvrir Dossier'}
+                  </button>
+                </>
+              )}
               <div className="flex-1 sm:flex-none">
                 <AddChargementModal dossier={dossier} camions={camions} />
               </div>
@@ -723,8 +740,12 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                     <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider">Date/Heure</th>
                     <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider">Unité / EVP</th>
                     <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider">Vecteur / Camion</th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider text-right">Coût Total</th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider text-right">Avance Verse</th>
+                    {role === 'secretaria' && (
+                      <>
+                        <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider text-right">Coût Total</th>
+                        <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider text-right">Avance Verse</th>
+                      </>
+                    )}
                     <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider text-right">Action</th>
                   </tr>
                 </thead>
@@ -752,60 +773,66 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                            </span>
                         </div>
                       </td>
+                      {role === 'secretaria' && (
+                        <>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex justify-end">
+                              <EditableAmount 
+                                value={ch.prixTotal} 
+                                onChange={async (val) => {
+                                  try {
+                                    await updateDoc(doc(db, "chargements", ch.id), { 
+                                      prixTotal: val,
+                                      solde: val - (ch.avance || 0),
+                                      updatedAt: new Date().toISOString()
+                                    });
+                                  } catch (err) {
+                                    handleFirestoreError(err, OperationType.UPDATE, `chargements/${ch.id}`);
+                                  }
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex justify-end">
+                              <EditableAmount 
+                                value={ch.avance}
+                                highlightColor="text-emerald-500"
+                                onChange={async (val) => {
+                                  try {
+                                    await updateDoc(doc(db, "chargements", ch.id), { 
+                                      avance: val,
+                                      solde: (ch.prixTotal || 0) - val,
+                                      updatedAt: new Date().toISOString()
+                                    });
+                                  } catch (err) {
+                                    handleFirestoreError(err, OperationType.UPDATE, `chargements/${ch.id}`);
+                                  }
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </>
+                      )}
                       <td className="py-4 px-4 text-right">
-                        <div className="flex justify-end">
-                          <EditableAmount 
-                            value={ch.prixTotal} 
-                            onChange={async (val) => {
-                              try {
-                                await updateDoc(doc(db, "chargements", ch.id), { 
-                                  prixTotal: val,
-                                  solde: val - (ch.avance || 0),
-                                  updatedAt: new Date().toISOString()
-                                });
-                              } catch (err) {
-                                handleFirestoreError(err, OperationType.UPDATE, `chargements/${ch.id}`);
-                              }
+                        {role === 'secretaria' && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteChargementData({ id: ch.id, conteneurId: ch.conteneurId });
                             }}
-                          />
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex justify-end">
-                          <EditableAmount 
-                            value={ch.avance}
-                            highlightColor="text-emerald-500"
-                            onChange={async (val) => {
-                              try {
-                                await updateDoc(doc(db, "chargements", ch.id), { 
-                                  avance: val,
-                                  solde: (ch.prixTotal || 0) - val,
-                                  updatedAt: new Date().toISOString()
-                                });
-                              } catch (err) {
-                                handleFirestoreError(err, OperationType.UPDATE, `chargements/${ch.id}`);
-                              }
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-right">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteChargementData({ id: ch.id, conteneurId: ch.conteneurId });
-                          }}
-                          className="p-2 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 rounded-lg transition-all"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                            className="p-2 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 rounded-lg transition-all"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                   {chargements.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                      <td colSpan={role === 'secretaria' ? 6 : 4} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
                         Flux logistique vierge
                       </td>
                     </tr>
@@ -840,6 +867,7 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
 
 function EditableAmount({ value, onChange, highlightColor = "text-slate-900 dark:text-white" }: { value: number, onChange: (val: number) => void, highlightColor?: string }) {
   const { settings } = useSettings();
+  const { role } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [val, setVal] = useState(value);
 
@@ -885,6 +913,7 @@ function EditableAmount({ value, onChange, highlightColor = "text-slate-900 dark
 
 function AddChargementModal({ dossier, camions: externalCamions }: { dossier: any; camions?: any[] }) {
   const { settings } = useSettings();
+  const { role } = useAuth();
   const [open, setOpen] = useState(false);
   const [localCamions, setLocalCamions] = useState<any[]>([]);
   const camions = externalCamions || localCamions;
@@ -1011,16 +1040,18 @@ function AddChargementModal({ dossier, camions: externalCamions }: { dossier: an
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Prix Total / Engagement ({settings.devise})</label>
-              <input required type="number" min="0" className="w-full border rounded-lg px-3 py-2" value={form.prixTotal} onChange={e => setForm({...form, prixTotal: parseInt(e.target.value) || 0})} />
+          {role === 'secretaria' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Prix Total / Engagement ({settings.devise})</label>
+                <input required type="number" min="0" className="w-full border rounded-lg px-3 py-2" value={form.prixTotal} onChange={e => setForm({...form, prixTotal: parseInt(e.target.value) || 0})} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Avance / Provision ({settings.devise})</label>
+                <input required type="number" min="0" className="w-full border rounded-lg px-3 py-2" value={form.avance} onChange={e => setForm({...form, avance: parseInt(e.target.value) || 0})} />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Avance / Provision ({settings.devise})</label>
-              <input required type="number" min="0" className="w-full border rounded-lg px-3 py-2" value={form.avance} onChange={e => setForm({...form, avance: parseInt(e.target.value) || 0})} />
-            </div>
-          </div>
+          )}
 
           <div className="flex justify-end gap-2 mt-6">
             <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>

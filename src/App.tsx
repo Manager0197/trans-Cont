@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
 import { LayoutDashboard, FolderOpen, Truck, DollarSign, FileBarChart, Menu, X, LogOut, Box, Moon, Sun, ShieldCheck, BookOpen } from "lucide-react";
 import { cn } from "./lib/utils";
 import Dashboard from "./pages/Dashboard";
@@ -39,7 +39,7 @@ function Sidebar({ isOpen, setIsOpen, logOut, user, theme, toggleTheme }: { isOp
   const allNavItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["secretaria", "logistique"] },
     { path: "/operations", label: "Portail Opérations", icon: ShieldCheck, roles: ["secretaria", "logistique"] },
-    { path: "/dossiers", label: "Dossiers BL", icon: FolderOpen, roles: ["secretaria"] },
+    { path: "/dossiers", label: "Dossiers BL", icon: FolderOpen, roles: ["secretaria", "stagiaire"] },
     { path: "/conteneurs", label: "Inventaire EVP", icon: Box, roles: ["secretaria"] },
     { path: "/flotte", label: "Gestion Flotte", icon: Truck, roles: ["secretaria", "logistique"] },
     { path: "/finances", label: "Flux Trésorerie", icon: DollarSign, roles: ["secretaria"] },
@@ -132,7 +132,7 @@ function BottomNav({ role }: { role: any }) {
   const location = useLocation();
   const allNavItems = [
     { path: "/", short: "Home", icon: LayoutDashboard, roles: ["secretaria", "logistique"] },
-    { path: "/dossiers", short: "Dossiers", icon: FolderOpen, roles: ["secretaria"] },
+    { path: "/dossiers", short: "Dossiers", icon: FolderOpen, roles: ["secretaria", "stagiaire"] },
     { path: "/operations", short: "Opérations", icon: ShieldCheck, roles: ["logistique"] },
     { path: "/flotte", short: "Flotte", icon: Truck, roles: ["secretaria", "logistique"] },
     { path: "/finances", short: "Finances", icon: DollarSign, roles: ["secretaria"] },
@@ -183,7 +183,7 @@ function AppContent() {
       } else if (err.code === "auth/operation-not-allowed") {
         setLoginError("Connexion par email non activée sur Firebase");
       } else {
-        setLoginError("Une erreur est survenue lors de la connexion");
+        setLoginError(err.message || "Une erreur est survenue lors de la connexion");
       }
     } finally {
       setIsSubmitting(false);
@@ -252,6 +252,7 @@ function AppContent() {
               <div className="space-y-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
                 <p>Secrétariat : <span className="text-slate-900 dark:text-white">admin@translog.com</span> / <span className="text-slate-900 dark:text-white">admin123</span></p>
                 <p>Logistique : <span className="text-slate-900 dark:text-white">logistique@translog.com</span> / <span className="text-slate-900 dark:text-white">logistique123</span></p>
+                <p>Stagiaire : <span className="text-slate-900 dark:text-white">stagiaire@translog.com</span> / <span className="text-slate-900 dark:text-white">stagiaire123</span></p>
               </div>
             </div>
 
@@ -306,11 +307,13 @@ function AppContent() {
           </header>
           <main className="flex-1 p-4 sm:p-10 overflow-auto pb-24 md:pb-10 custom-scrollbar">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={role === 'stagiaire' ? <Navigate to="/dossiers" replace /> : <Dashboard />} />
               <Route path="/operations" element={<PortailOperations />} />
+              {(role === 'secretaria' || role === 'stagiaire') && (
+                <Route path="/dossiers" element={<Dossiers />} />
+              )}
               {role === 'secretaria' && (
                 <>
-                  <Route path="/dossiers" element={<Dossiers />} />
                   <Route path="/conteneurs" element={<Conteneurs />} />
                   <Route path="/finances" element={<Finances />} />
                   <Route path="/rapports" element={<Rapports />} />
