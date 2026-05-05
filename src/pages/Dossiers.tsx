@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, where, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Plus, ChevronDown, ChevronUp, Truck, FolderOpen, Search, Trash2, Edit2, Check, X as XIcon, Box, CheckCircle2, DollarSign } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Truck, FolderOpen, Search, Trash2, Edit2, Check, X as XIcon, Box, CheckCircle2, DollarSign, ShieldCheck } from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import ConfirmModal from "../components/ConfirmModal";
 import { cn } from "../lib/utils";
@@ -120,6 +120,7 @@ export default function Dossiers() {
             avance: Number(c.avance) || 0,
             solde: (Number(c.prix) || 0) - (Number(c.avance) || 0),
             statutPaiement: (Number(c.prix) - Number(c.avance)) <= 0 ? "paye" : "non_paye",
+            statutApprobation: role === 'secretaria' ? "valide" : "en_attente",
             dateChargement: new Date().toISOString(),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -498,9 +499,10 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
 
   const stats = useMemo(() => {
     const totalChargements = chargements.length;
-    const totalPrix = chargements.reduce((sum, ch) => sum + (Number(ch.prixTotal) || 0), 0);
-    const totalAvance = chargements.reduce((sum, ch) => sum + (Number(ch.avance) || 0), 0);
-    const totalSolde = chargements.reduce((sum, ch) => sum + (Number(ch.solde) || 0), 0);
+    const totalPrix = chargements.filter(ch => ch.statutApprobation !== 'rejete').reduce((sum, ch) => sum + (Number(ch.prixTotal) || 0), 0);
+    const totalAvance = chargements.filter(ch => ch.statutApprobation !== 'rejete').reduce((sum, ch) => sum + (Number(ch.avance) || 0), 0);
+    const totalSolde = chargements.filter(ch => ch.statutApprobation !== 'rejete').reduce((sum, ch) => sum + (Number(ch.solde) || 0), 0);
+    const hasPending = chargements.some(ch => ch.statutApprobation === 'en_attente');
     const progress = (totalChargements / (Number(dossier.nbConteneurs) || 1)) * 100;
     const marge = (Number(dossier.prixContrat) || 0) - totalPrix;
     
@@ -671,9 +673,14 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
             </div>
             {role === 'secretaria' && (
               <>
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative">
                   <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-4">Dépenses Logistiques</p>
                   <p className="text-xl font-black text-rose-500 tabular-nums">{stats.totalPrix.toLocaleString()} {settings.devise}</p>
+                  {stats.hasPending && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-600 text-[8px] font-black uppercase rounded-full border border-amber-200">
+                      <ShieldCheck className="w-2.5 h-2.5" /> Approbation en attente
+                    </div>
+                  )}
                 </div>
                 <div 
                   className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-help hover:border-blue-500/50 transition-all group/avance"
@@ -740,6 +747,7 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                     <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider">Date/Heure</th>
                     <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider">Unité / EVP</th>
                     <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider">Vecteur / Camion</th>
+                    <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider">État Validation</th>
                     {role === 'secretaria' && (
                       <>
                         <th className="py-4 px-4 font-black uppercase text-slate-400 tracking-wider text-right">Coût Total</th>
@@ -771,6 +779,23 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                                ? (camions.find(c => c.id === ch.camionId)?.numero || ch.camionId || "Flotte") 
                                : `Prest: ${ch.nomTransporteurExterne || "N/A"}`}
                            </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                           {ch.statutApprobation === 'valide' ? (
+                             <span className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-md border border-emerald-100 dark:border-emerald-800">
+                               <CheckCircle2 className="w-3 h-3" /> Validé
+                             </span>
+                           ) : ch.statutApprobation === 'rejete' ? (
+                             <span className="flex items-center gap-1 text-[9px] font-black text-rose-500 uppercase bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded-md border border-rose-100 dark:border-rose-800">
+                               <XIcon className="w-3 h-3" /> Rejeté
+                             </span>
+                           ) : (
+                             <span className="flex items-center gap-1 text-[9px] font-black text-amber-500 uppercase bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-md border border-amber-100 dark:border-amber-800 animate-pulse">
+                               <ShieldCheck className="w-3 h-3" /> En attente
+                             </span>
+                           )}
                         </div>
                       </td>
                       {role === 'secretaria' && (
@@ -815,24 +840,58 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                         </>
                       )}
                       <td className="py-4 px-4 text-right">
-                        {role === 'secretaria' && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteChargementData({ id: ch.id, conteneurId: ch.conteneurId });
-                            }}
-                            className="p-2 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 rounded-lg transition-all"
-                            title="Supprimer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="flex justify-end gap-2">
+                          {role === 'secretaria' && ch.statutApprobation === 'en_attente' && (
+                            <>
+                              <button 
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    await updateDoc(doc(db, "chargements", ch.id), { statutApprobation: "valide", updatedAt: new Date().toISOString() });
+                                  } catch (err) {
+                                    handleFirestoreError(err, OperationType.UPDATE, `chargements/${ch.id}`);
+                                  }
+                                }}
+                                className="p-2 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/10 rounded-lg transition-all"
+                                title="Valider la dépense"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    await updateDoc(doc(db, "chargements", ch.id), { statutApprobation: "rejete", updatedAt: new Date().toISOString() });
+                                  } catch (err) {
+                                    handleFirestoreError(err, OperationType.UPDATE, `chargements/${ch.id}`);
+                                  }
+                                }}
+                                className="p-2 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 rounded-lg transition-all"
+                                title="Rejeter la dépense"
+                              >
+                                <XIcon className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                          {role === 'secretaria' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteChargementData({ id: ch.id, conteneurId: ch.conteneurId });
+                              }}
+                              className="p-2 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 rounded-lg transition-all"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {chargements.length === 0 && (
                     <tr>
-                      <td colSpan={role === 'secretaria' ? 6 : 4} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                      <td colSpan={role === 'secretaria' ? 7 : 4} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
                         Flux logistique vierge
                       </td>
                     </tr>
@@ -974,6 +1033,7 @@ function AddChargementModal({ dossier, camions: externalCamions }: { dossier: an
         prixTotal: form.prixTotal,
         solde: form.prixTotal - form.avance,
         statutPaiement: (form.prixTotal - form.avance) <= 0 ? "paye" : "non_paye",
+        statutApprobation: role === 'secretaria' ? "valide" : "en_attente",
         dateChargement: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         createdAt: new Date().toISOString()
