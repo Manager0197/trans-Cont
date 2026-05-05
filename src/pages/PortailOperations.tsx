@@ -592,20 +592,22 @@ export default function PortailOperations() {
                                     <div 
                                       className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${isInterne ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 border-blue-100 group-hover/truck:border-blue-500/50' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 border-amber-100 group-hover/truck:border-amber-500/50'}`}
                                       onClick={(e) => {
-                                        if (isInterne && (role === 'secretaria' || role === 'logistique')) {
+                                        if (role === 'secretaria' || role === 'logistique') {
                                           e.stopPropagation();
                                         }
                                       }}
                                     >
                                       <Truck className="w-3.5 h-3.5" />
-                                      {isInterne && (role === 'secretaria' || role === 'logistique') ? (
-                                        <EditableTruck 
+                                      {(role === 'secretaria' || role === 'logistique') ? (
+                                        <EditableFleet 
+                                          currentType={miss.typeTransporteur || 'interne'}
                                           currentCamionId={miss.camionId}
-                                          camions={camions.filter(c => c.type !== 'externe')}
-                                          onChange={async (newId) => {
+                                          currentPrestataire={miss.nomTransporteurExterne}
+                                          camions={camions}
+                                          onChange={async (updates) => {
                                             try {
                                               await updateDoc(doc(db, "chargements", miss.id), { 
-                                                camionId: newId,
+                                                ...updates,
                                                 updatedAt: new Date().toISOString()
                                               });
                                             } catch (err) {
@@ -614,8 +616,8 @@ export default function PortailOperations() {
                                           }}
                                         />
                                       ) : (
-                                        <span className="text-[10px] font-black uppercase">
-                                          {camion.numero}
+                                        <span className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-200">
+                                          {miss.typeTransporteur === 'interne' ? (camion?.numero || "Inconnu") : (miss.nomTransporteurExterne || "Externe")}
                                         </span>
                                       )}
                                     </div>
@@ -1213,36 +1215,31 @@ function MissionRow({
         )}
       </td>
       <td className="px-4 py-3">
-        {camion ? (
+        {(role === 'secretaria' || role === 'logistique') ? (
           <div className="flex items-center gap-2">
-            {camion.type !== 'externe' && (role === 'secretaria' || role === 'logistique') ? (
-              <EditableTruck 
-                currentCamionId={miss.camionId}
-                camions={camions.filter((c: any) => c.type !== 'externe')}
-                onChange={async (newId) => {
-                  try {
-                    await updateDoc(doc(db, "chargements", miss.id), { 
-                      camionId: newId,
-                      updatedAt: new Date().toISOString()
-                    });
-                  } catch (err) {
-                    handleFirestoreError(err, OperationType.UPDATE, `chargements/${miss.id}`);
-                  }
-                }}
-              />
-            ) : (
-              <span className="font-bold text-slate-700 dark:text-slate-300 uppercase">
-                {camion.numero}
-              </span>
-            )}
+            <EditableFleet 
+              currentType={miss.typeTransporteur || 'interne'}
+              currentCamionId={miss.camionId}
+              currentPrestataire={miss.nomTransporteurExterne}
+              camions={camions}
+              onChange={async (updates) => {
+                try {
+                  await updateDoc(doc(db, "chargements", miss.id), { 
+                    ...updates,
+                    updatedAt: new Date().toISOString()
+                  });
+                } catch (err) {
+                  handleFirestoreError(err, OperationType.UPDATE, `chargements/${miss.id}`);
+                }
+              }}
+            />
           </div>
         ) : (
-          <button 
-            onClick={() => setAssigningMission(miss)}
-            className="text-rose-500 animate-pulse font-bold uppercase"
-          >
-            À affecter
-          </button>
+          <span className="font-bold text-slate-700 dark:text-slate-300 uppercase">
+            {miss.typeTransporteur === 'interne' 
+              ? (camions.find((c: any) => c.id === miss.camionId)?.numero || "À affecter") 
+              : (miss.nomTransporteurExterne || "Externe")}
+          </span>
         )}
       </td>
       <td className="px-4 py-3 text-right">
@@ -1274,31 +1271,82 @@ function MissionRow({
   );
 }
 
-function EditableTruck({ currentCamionId, camions, onChange }: { currentCamionId: string, camions: any[], onChange: (val: string) => void }) {
+function EditableFleet({ currentType, currentCamionId, currentPrestataire, camions, onChange }: { currentType: string, currentCamionId?: string, currentPrestataire?: string, camions: any[], onChange: (updates: any) => void }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [val, setVal] = useState(currentCamionId);
+  const [type, setType] = useState(currentType);
+  const [camionId, setCamionId] = useState(currentCamionId || "");
+  const [prestataire, setPrestataire] = useState(currentPrestataire || "");
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-        <select 
-          autoFocus
-          className="bg-blue-50 dark:bg-blue-900/30 border border-blue-500/50 rounded-lg px-2 py-1 text-[10px] font-black outline-none shadow-inner"
-          value={val}
-          onChange={e => setVal(e.target.value)}
-        >
-          {camions.map(c => (
-            <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900">
-              {c.numero} - {c.chauffeur || 'Sans chauffeur'}
-            </option>
-          ))}
-        </select>
-        <button onClick={() => { onChange(val); setIsEditing(false); }} className="p-1 px-2 bg-emerald-500 text-white rounded-lg shadow-sm text-[10px] font-bold">
-          OK
-        </button>
-        <button onClick={() => { setVal(currentCamionId); setIsEditing(false); }} className="p-1 px-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm text-[10px] font-bold">
-          X
-        </button>
+      <div className="flex flex-col gap-2 p-3 bg-white dark:bg-slate-900 border border-blue-500/30 rounded-xl shadow-xl z-50 min-w-[200px]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 mb-1">
+          <button 
+            type="button"
+            onClick={() => setType('interne')}
+            className={`flex-1 text-[10px] font-black uppercase py-1 rounded-md transition-all ${type === 'interne' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+          >
+            Interne
+          </button>
+          <button 
+            type="button"
+            onClick={() => setType('externe')}
+            className={`flex-1 text-[10px] font-black uppercase py-1 rounded-md transition-all ${type === 'externe' ? 'bg-amber-500 text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+          >
+            Externe
+          </button>
+        </div>
+
+        {type === 'interne' ? (
+          <select 
+            autoFocus
+            className="w-full bg-blue-50 dark:bg-blue-900/30 border border-blue-500/50 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none shadow-inner"
+            value={camionId}
+            onChange={e => setCamionId(e.target.value)}
+          >
+            <option value="">Sélectionner un camion...</option>
+            {camions.filter(c => c.type !== 'externe').map(c => (
+              <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900">
+                {c.numero} - {c.chauffeur || 'Sans chauffeur'}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input 
+            autoFocus
+            placeholder="Nom du prestataire"
+            className="w-full bg-amber-50 dark:bg-amber-900/10 border border-amber-500/30 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none shadow-inner"
+            value={prestataire}
+            onChange={e => setPrestataire(e.target.value)}
+          />
+        )}
+
+        <div className="flex gap-1">
+          <button 
+            onClick={() => { 
+              onChange({
+                typeTransporteur: type,
+                camionId: type === 'interne' ? camionId : null,
+                nomTransporteurExterne: type === 'externe' ? prestataire : null
+              }); 
+              setIsEditing(false); 
+            }} 
+            className="flex-1 py-1.5 bg-emerald-500 text-white rounded-lg shadow-sm text-[10px] font-black uppercase"
+          >
+            Valider
+          </button>
+          <button 
+            onClick={() => { 
+              setType(currentType);
+              setCamionId(currentCamionId || "");
+              setPrestataire(currentPrestataire || "");
+              setIsEditing(false); 
+            }} 
+            className="flex-1 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm text-[10px] font-black uppercase"
+          >
+            Annuler
+          </button>
+        </div>
       </div>
     );
   }
@@ -1308,12 +1356,19 @@ function EditableTruck({ currentCamionId, camions, onChange }: { currentCamionId
   return (
     <button 
       onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-      className="flex items-center gap-2 py-1 px-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all text-left"
+      className="flex items-center gap-2 py-1 px-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all text-left group/edit"
     >
-      <span className="font-bold text-[10px] uppercase">
-        {currentCamion?.numero || currentCamionId || "Choisir un camion"}
-      </span>
-      <Edit2 className="w-2.5 h-2.5 text-blue-500" />
+      <div className="flex flex-col">
+        <span className={`text-[8px] font-black uppercase tracking-widest ${currentType === 'interne' ? 'text-blue-500' : 'text-amber-500'}`}>
+          {currentType === 'interne' ? 'FLOTTE CDI' : 'PRESTATAIRE'}
+        </span>
+        <span className="font-bold text-slate-900 dark:text-white uppercase text-[10px]">
+          {currentType === 'interne' 
+            ? (currentCamion?.numero || currentCamionId || "À affecter") 
+            : (currentPrestataire || "N/A")}
+        </span>
+      </div>
+      <Edit2 className="w-2.5 h-2.5 text-blue-500 opacity-0 group-hover/edit:opacity-100 transition-opacity" />
     </button>
   );
 }
