@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, where, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Plus, ChevronDown, ChevronUp, Truck, FolderOpen, Search, Trash2, Edit2, Check, X as XIcon, Box, CheckCircle2, DollarSign, ShieldCheck } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Truck, FolderOpen, Search, Trash2, Edit2, Check, X as XIcon, Box, CheckCircle2, DollarSign, ShieldCheck, UserCircle } from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import ConfirmModal from "../components/ConfirmModal";
 import { cn } from "../lib/utils";
@@ -996,62 +996,74 @@ function EditableFleet({ currentType, currentCamionId, currentPrestataire, camio
   const [prestataire, setPrestataire] = useState(currentPrestataire || "");
 
   if (isEditing) {
+    const hasChanges = type !== currentType || (type === 'interne' && camionId !== currentCamionId) || (type === 'externe' && prestataire !== currentPrestataire);
+    
     return (
-      <div className="flex flex-col gap-2 p-3 bg-white dark:bg-slate-900 border border-blue-500/30 rounded-xl shadow-xl z-10 min-w-[200px]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2 mb-1">
+      <div className="flex flex-col gap-2 p-3 bg-white dark:bg-slate-900 border border-blue-500/30 rounded-xl shadow-xl z-20 min-w-[220px]" onClick={e => e.stopPropagation()}>
+        <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Type de Flotte</p>
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <button 
             type="button"
             onClick={() => setType('interne')}
-            className={`flex-1 text-[10px] font-black uppercase py-1 rounded-md transition-all ${type === 'interne' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+            className={`flex items-center justify-center gap-2 text-[10px] font-black uppercase py-2 rounded-lg transition-all border ${type === 'interne' ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'}`}
           >
+            <Truck className="w-3 h-3" />
             Interne
           </button>
           <button 
             type="button"
             onClick={() => setType('externe')}
-            className={`flex-1 text-[10px] font-black uppercase py-1 rounded-md transition-all ${type === 'externe' ? 'bg-amber-500 text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+            className={`flex items-center justify-center gap-2 text-[10px] font-black uppercase py-2 rounded-lg transition-all border ${type === 'externe' ? 'bg-amber-500 text-slate-900 border-amber-500 shadow-lg shadow-amber-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'}`}
           >
+            <UserCircle className="w-3 h-3" />
             Externe
           </button>
         </div>
 
-        {type === 'interne' ? (
-          <select 
-            autoFocus
-            className="w-full bg-blue-50 dark:bg-blue-900/30 border border-blue-500/50 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none shadow-inner"
-            value={camionId}
-            onChange={e => setCamionId(e.target.value)}
-          >
-            <option value="">Sélectionner un camion...</option>
-            {camions.filter(c => c.type !== 'externe').map(c => (
-              <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900">
-                {c.numero} - {c.chauffeur || 'Sans chauffeur'}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input 
-            autoFocus
-            placeholder="Nom du prestataire"
-            className="w-full bg-amber-50 dark:bg-amber-900/10 border border-amber-500/30 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none shadow-inner"
-            value={prestataire}
-            onChange={e => setPrestataire(e.target.value)}
-          />
-        )}
+        <div className="space-y-1">
+          {type === 'interne' ? (
+            <>
+              <p className="text-[9px] font-black uppercase text-slate-400 px-1">Sélection Camion (Opt.)</p>
+              <select 
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none"
+                value={camionId}
+                onChange={e => setCamionId(e.target.value)}
+              >
+                <option value="">Choisir plus tard...</option>
+                {camions.filter(c => c.type !== 'externe').map(c => (
+                  <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900">
+                    {c.numero} - {c.chauffeur || 'Sans chauffeur'}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <>
+              <p className="text-[9px] font-black uppercase text-slate-400 px-1">Prestataire (Opt.)</p>
+              <input 
+                placeholder="Nom du prestataire"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none"
+                value={prestataire}
+                onChange={e => setPrestataire(e.target.value)}
+              />
+            </>
+          )}
+        </div>
 
-        <div className="flex gap-1">
+        <div className="flex gap-2 mt-2">
           <button 
             onClick={() => { 
               onChange({
                 typeTransporteur: type,
-                camionId: type === 'interne' ? camionId : null,
-                nomTransporteurExterne: type === 'externe' ? prestataire : null
+                camionId: type === 'interne' ? (camionId || null) : null,
+                nomTransporteurExterne: type === 'externe' ? (prestataire || null) : null
               }); 
               setIsEditing(false); 
             }} 
-            className="flex-1 py-1.5 bg-emerald-500 text-white rounded-lg shadow-sm text-[10px] font-black uppercase"
+            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${hasChanges ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:scale-105' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'}`}
+            disabled={!hasChanges}
           >
-            Valider
+            Enregistrer
           </button>
           <button 
             onClick={() => { 
@@ -1060,9 +1072,9 @@ function EditableFleet({ currentType, currentCamionId, currentPrestataire, camio
               setPrestataire(currentPrestataire || "");
               setIsEditing(false); 
             }} 
-            className="flex-1 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm text-[10px] font-black uppercase"
+            className="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700 transition-all font-mono"
           >
-            Annuler
+            Fermer
           </button>
         </div>
       </div>

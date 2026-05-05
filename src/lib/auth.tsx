@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth } from "./firebase";
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, signInWithEmailAndPassword, signInAnonymously } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, signInWithEmailAndPassword, signInAnonymously, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -28,6 +28,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Force local persistence to prevent frequent logouts
+    setPersistence(auth, browserLocalPersistence).catch(err => console.error("Persistence error", err));
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setLoading(true);
       if (u) {
