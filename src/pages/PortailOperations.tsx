@@ -32,7 +32,7 @@ import { useSettings } from "../hooks/useSettings";
 import ConfirmModal from "../components/ConfirmModal";
 
 export default function PortailOperations() {
-  const { user, logOut } = useAuth();
+  const { user, logOut, role } = useAuth();
   const { settings } = useSettings();
   const [activeTab, setActiveTab] = useState(
     user?.email === "flotte@translog-pro.com" ? "flotte" : "global",
@@ -589,11 +589,35 @@ export default function PortailOperations() {
                                     <p className={`text-[8px] font-black ${isInterne ? 'text-blue-600' : 'text-amber-600'} uppercase tracking-[0.2em] mb-1`}>
                                       {isInterne ? 'Vecteur CDI' : 'Vecteur Externe'}
                                     </p>
-                                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${isInterne ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 border-blue-100' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 border-amber-100'}`}>
+                                    <div 
+                                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${isInterne ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 border-blue-100 group-hover/truck:border-blue-500/50' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 border-amber-100 group-hover/truck:border-amber-500/50'}`}
+                                      onClick={(e) => {
+                                        if (isInterne && (role === 'secretaria' || role === 'logistique')) {
+                                          e.stopPropagation();
+                                        }
+                                      }}
+                                    >
                                       <Truck className="w-3.5 h-3.5" />
-                                      <span className="text-[10px] font-black uppercase">
-                                        {camion.numero}
-                                      </span>
+                                      {isInterne && (role === 'secretaria' || role === 'logistique') ? (
+                                        <EditableTruck 
+                                          currentCamionId={miss.camionId}
+                                          camions={camions.filter(c => c.type !== 'externe')}
+                                          onChange={async (newId) => {
+                                            try {
+                                              await updateDoc(doc(db, "chargements", miss.id), { 
+                                                camionId: newId,
+                                                updatedAt: new Date().toISOString()
+                                              });
+                                            } catch (err) {
+                                              handleFirestoreError(err, OperationType.UPDATE, `chargements/${miss.id}`);
+                                            }
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="text-[10px] font-black uppercase">
+                                          {camion.numero}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 ) : (
@@ -1123,6 +1147,7 @@ function MissionRow({
   camions,
   setAssigningMission,
 }: any) {
+  const { role } = useAuth();
   const [isEditingMission, setIsEditingMission] = useState(false);
   const [editMissionForm, setEditMissionForm] = useState({
     ville: miss.ville,
@@ -1187,14 +1212,37 @@ function MissionRow({
           </span>
         )}
       </td>
-      <td
-        className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300 uppercase cursor-pointer"
-        onClick={() => setAssigningMission(miss)}
-      >
+      <td className="px-4 py-3">
         {camion ? (
-          camion.numero
+          <div className="flex items-center gap-2">
+            {camion.type !== 'externe' && (role === 'secretaria' || role === 'logistique') ? (
+              <EditableTruck 
+                currentCamionId={miss.camionId}
+                camions={camions.filter((c: any) => c.type !== 'externe')}
+                onChange={async (newId) => {
+                  try {
+                    await updateDoc(doc(db, "chargements", miss.id), { 
+                      camionId: newId,
+                      updatedAt: new Date().toISOString()
+                    });
+                  } catch (err) {
+                    handleFirestoreError(err, OperationType.UPDATE, `chargements/${miss.id}`);
+                  }
+                }}
+              />
+            ) : (
+              <span className="font-bold text-slate-700 dark:text-slate-300 uppercase">
+                {camion.numero}
+              </span>
+            )}
+          </div>
         ) : (
-          <span className="text-rose-500 animate-pulse">À affecter</span>
+          <button 
+            onClick={() => setAssigningMission(miss)}
+            className="text-rose-500 animate-pulse font-bold uppercase"
+          >
+            À affecter
+          </button>
         )}
       </td>
       <td className="px-4 py-3 text-right">
@@ -1223,5 +1271,49 @@ function MissionRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function EditableTruck({ currentCamionId, camions, onChange }: { currentCamionId: string, camions: any[], onChange: (val: string) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [val, setVal] = useState(currentCamionId);
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        <select 
+          autoFocus
+          className="bg-blue-50 dark:bg-blue-900/30 border border-blue-500/50 rounded-lg px-2 py-1 text-[10px] font-black outline-none shadow-inner"
+          value={val}
+          onChange={e => setVal(e.target.value)}
+        >
+          {camions.map(c => (
+            <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900">
+              {c.numero} - {c.chauffeur || 'Sans chauffeur'}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => { onChange(val); setIsEditing(false); }} className="p-1 px-2 bg-emerald-500 text-white rounded-lg shadow-sm text-[10px] font-bold">
+          OK
+        </button>
+        <button onClick={() => { setVal(currentCamionId); setIsEditing(false); }} className="p-1 px-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm text-[10px] font-bold">
+          X
+        </button>
+      </div>
+    );
+  }
+
+  const currentCamion = camions.find(c => c.id === currentCamionId);
+
+  return (
+    <button 
+      onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+      className="flex items-center gap-2 py-1 px-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all text-left"
+    >
+      <span className="font-bold text-[10px] uppercase">
+        {currentCamion?.numero || currentCamionId || "Choisir un camion"}
+      </span>
+      <Edit2 className="w-2.5 h-2.5 text-blue-500" />
+    </button>
   );
 }

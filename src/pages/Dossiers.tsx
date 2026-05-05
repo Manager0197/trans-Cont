@@ -774,11 +774,28 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">
                            <Truck className="w-3.5 h-3.5 text-slate-400" />
-                           <span className="font-bold text-slate-600 dark:text-slate-300">
-                             {ch.typeTransporteur === 'interne' 
-                               ? (camions.find(c => c.id === ch.camionId)?.numero || ch.camionId || "Flotte") 
-                               : `Prest: ${ch.nomTransporteurExterne || "N/A"}`}
-                           </span>
+                           {(role === 'secretaria' || role === 'logistique') && ch.typeTransporteur === 'interne' ? (
+                             <EditableTruck 
+                               currentCamionId={ch.camionId}
+                               camions={camions}
+                               onChange={async (newId) => {
+                                 try {
+                                   await updateDoc(doc(db, "chargements", ch.id), { 
+                                     camionId: newId,
+                                     updatedAt: new Date().toISOString()
+                                   });
+                                 } catch (err) {
+                                   handleFirestoreError(err, OperationType.UPDATE, `chargements/${ch.id}`);
+                                 }
+                               }}
+                             />
+                           ) : (
+                             <span className="font-bold text-slate-600 dark:text-slate-300">
+                               {ch.typeTransporteur === 'interne' 
+                                 ? (camions.find(c => c.id === ch.camionId)?.numero || ch.camionId || "Flotte") 
+                                 : `Prest: ${ch.nomTransporteurExterne || "N/A"}`}
+                             </span>
+                           )}
                         </div>
                       </td>
                       <td className="py-4 px-4">
@@ -967,6 +984,50 @@ function EditableAmount({ value, onChange, highlightColor = "text-slate-900 dark
          <Edit2 className="w-2.5 h-2.5 text-blue-500" />
        </div>
     </div>
+  );
+}
+
+function EditableTruck({ currentCamionId, camions, onChange }: { currentCamionId: string, camions: any[], onChange: (val: string) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [val, setVal] = useState(currentCamionId);
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        <select 
+          autoFocus
+          className="bg-blue-50 dark:bg-blue-900/30 border border-blue-500/50 rounded-lg px-2 py-1 text-[10px] font-black outline-none shadow-inner"
+          value={val}
+          onChange={e => setVal(e.target.value)}
+        >
+          {camions.map(c => (
+            <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900">
+              {c.numero} - {c.chauffeur?.nom || 'Sans chauffeur'}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => { onChange(val); setIsEditing(false); }} className="p-1 px-2 bg-emerald-500 text-white rounded-lg shadow-sm text-[10px] font-bold">
+          OK
+        </button>
+        <button onClick={() => { setVal(currentCamionId); setIsEditing(false); }} className="p-1 px-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm text-[10px] font-bold">
+          X
+        </button>
+      </div>
+    );
+  }
+
+  const currentCamion = camions.find(c => c.id === currentCamionId);
+
+  return (
+    <button 
+      onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+      className="flex items-center gap-2 py-1 px-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all text-left"
+    >
+      <span className="font-bold text-slate-600 dark:text-slate-300">
+        {currentCamion?.numero || currentCamionId || "Choisir un camion"}
+      </span>
+      <Edit2 className="w-2.5 h-2.5 text-blue-500" />
+    </button>
   );
 }
 
