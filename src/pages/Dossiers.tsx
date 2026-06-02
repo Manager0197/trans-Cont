@@ -89,7 +89,7 @@ export default function Dossiers() {
     try {
       const docRef = await addDoc(collection(db, "dossiers"), {
         numeroBL: newDossier.numeroBL,
-        client: newDossier.client || "Client Inconnu",
+        client: newDossier.client || "",
         nbConteneurs: Number(newDossier.nbConteneurs) || 0,
         prixContrat: Number(newDossier.prixContrat) || 0,
         statut: "en_cours",
@@ -550,7 +550,7 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                   <>
                     <h3 className="text-base sm:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter truncate max-w-[120px] sm:max-w-none">BL #{dossier.numeroBL}</h3>
                     <div className="flex flex-col text-[8px] font-black leading-tight">
-                       <span className="text-blue-600 dark:text-blue-400 uppercase truncate max-w-[150px]">{dossier.client || "Client Inconnu"}</span>
+                       <span className="text-blue-600 dark:text-blue-400 uppercase truncate max-w-[150px]">{dossier.client && dossier.client !== "Client Inconnu" ? dossier.client : "Client non spécifié"}</span>
                        <span className="text-slate-400 dark:text-slate-500">{new Date(dossier.createdAt).toLocaleDateString('fr-FR')}</span>
                     </div>
                     {role === 'secretaria' && (
@@ -631,7 +631,7 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
                    onChange={e => setEditForm({...editForm, client: e.target.value})}
                  />
               ) : (
-                <p className="font-bold text-slate-900 dark:text-white px-1">{dossier.client || "Client Inconnu"}</p>
+                <p className="font-bold text-slate-900 dark:text-white px-1">{dossier.client && dossier.client !== "Client Inconnu" ? dossier.client : "Client non spécifié"}</p>
               )}
             </div>
           </div>

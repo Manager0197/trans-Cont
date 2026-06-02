@@ -293,7 +293,7 @@ export default function Camions() {
                     </div>
                     <div className="text-left">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Dossier BL #{dossier?.numeroBL}</p>
-                      <h4 className="font-bold text-slate-900 dark:text-white uppercase text-sm">{dossier?.client || "Client Inconnu"}</h4>
+                      <h4 className="font-bold text-slate-900 dark:text-white uppercase text-sm">{dossier?.client && dossier.client !== "Client Inconnu" ? dossier.client : "Client non spécifié"}</h4>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

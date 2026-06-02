@@ -538,7 +538,7 @@ export default function PortailOperations() {
                             BL: #{group.dossier?.numeroBL || "DOSSIER SANS NUMÉRO"}
                           </h4>
                           <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                            {group.dossier?.client || "Client Inconnu"} • {itemsCount} CONTENEUR(S)
+                            {group.dossier?.client && group.dossier.client !== "Client Inconnu" ? group.dossier.client : "Client non spécifié"} • {itemsCount} CONTENEUR(S)
                           </p>
                         </div>
                       </div>
@@ -859,7 +859,7 @@ export default function PortailOperations() {
                             BL: #{group.dossier?.numeroBL || "DOSSIER SANS NUMÉRO"}
                           </h4>
                           <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                            {group.dossier?.client || "Client Inconnu"} • {group.items.reduce((sum, item) => sum + (Number(item.prixTotal) || 0), 0).toLocaleString()} {settings.devise}
+                            {group.dossier?.client && group.dossier.client !== "Client Inconnu" ? group.dossier.client : "Client non spécifié"} • {group.items.reduce((sum, item) => sum + (Number(item.prixTotal) || 0), 0).toLocaleString()} {settings.devise}
                           </p>
                         </div>
                       </div>

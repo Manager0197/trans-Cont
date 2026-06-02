@@ -29,24 +29,48 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
+  const getSafeAuthInfo = () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return null;
+      return {
+        userId: user.uid,
+        email: user.email || undefined,
+        emailVerified: user.emailVerified,
+        isAnonymous: user.isAnonymous,
+        tenantId: user.tenantId || undefined,
+        providerInfo: user.providerData.map(p => ({
+          providerId: p.providerId,
+          uid: p.uid,
+          email: p.email,
+        }))
+      };
+    } catch (e) {
+      return "Auth info inaccessible";
+    }
+  };
+
+  const errInfo = {
     error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email || undefined,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId || undefined,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
     operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+    path,
+    authInfo: getSafeAuthInfo(),
+    timestamp: new Date().toISOString()
+  };
+
+  // Safe stringify to avoid circular references
+  const safeJson = (obj: any) => {
+    const cache = new Set();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return "[Circular]";
+        cache.add(value);
+      }
+      return value;
+    });
+  };
+
+  const serialized = safeJson(errInfo);
+  console.error('Firestore Error: ', serialized);
+  throw new Error(serialized);
 }
