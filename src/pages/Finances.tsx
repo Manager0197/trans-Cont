@@ -1,16 +1,19 @@
 import { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, query, where, updateDoc, doc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, query, where, updateDoc, doc, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { DollarSign, CheckCircle, Clock, AlertTriangle, ShieldCheck, Calculator, ArrowRight, Truck, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { useAuth } from "../lib/auth";
+import { DollarSign, CheckCircle, Clock, AlertTriangle, ShieldCheck, Calculator, ArrowRight, Truck, FileText, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { handleFirestoreError, OperationType } from "../lib/firestore-error";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSettings } from "../hooks/useSettings";
 
 export default function Finances() {
   const { settings } = useSettings();
+  const { role } = useAuth();
   const [chargements, setChargements] = useState<any[]>([]);
   const [dossiers, setDossiers] = useState<any[]>([]);
   const [confirmPayDossierId, setConfirmPayDossierId] = useState<string | null>(null);
+  const [confirmDeleteDossierId, setConfirmDeleteDossierId] = useState<string | null>(null);
   const [expandedDossiers, setExpandedDossiers] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -86,6 +89,28 @@ export default function Finances() {
     setExpandedDossiers(prev => ({ ...prev, [dId]: !prev[dId] }));
   };
 
+  const handleDeleteUnreferencedDossier = async (dossierId: string) => {
+    try {
+      const batch = writeBatch(db);
+      
+      const items = groupedData[dossierId] || [];
+      items.forEach(item => {
+        batch.delete(doc(db, "chargements", item.id));
+      });
+      
+      const qConteneurs = query(collection(db, "conteneurs"), where("dossierId", "==", dossierId));
+      const snapConteneurs = await getDocs(qConteneurs);
+      snapConteneurs.docs.forEach(docSnap => {
+        batch.delete(doc(db, "conteneurs", docSnap.id));
+      });
+      
+      await batch.commit();
+      setConfirmDeleteDossierId(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `dossiers/unreferenced/${dossierId}`);
+    }
+  };
+
   const pendingCount = chargements.filter(c => c.statutPaiement === 'non_paye').length;
   const totalDebt = chargements.filter(c => c.statutPaiement === 'non_paye').reduce((sum, c) => sum + (Number(c.solde) || 0), 0);
 
@@ -136,7 +161,14 @@ export default function Finances() {
                   <div className="flex items-center gap-6">
                     <div className={`w-16 h-16 rounded-3xl flex items-center justify-center font-black italic shadow-lg text-xl rotate-3 ${allPaid ? 'bg-slate-100 text-slate-400' : 'bg-blue-600 text-white shadow-blue-500/30'}`}>BL</div>
                     <div>
-                      <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">#{dossier?.numeroBL || "Dossier Non Référencé"}</h3>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{dossier ? `#${dossier.numeroBL}` : "Dossier Non Référencé"}</h3>
+                        {!dossier && (
+                          <span className="px-3 py-1 bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase rounded-full tracking-wider animate-pulse">
+                            Dossier Orphelin
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
                         Client : <span className="text-slate-900 dark:text-white">{dossier?.client || "Inconnu"}</span> • {items.length} unité(s)
                       </p>
@@ -162,6 +194,16 @@ export default function Finances() {
                       <div className="bg-emerald-500/10 text-emerald-500 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest flex items-center gap-2">
                         <ShieldCheck className="w-4 h-4" /> Dossier Soldé
                       </div>
+                    )}
+                    
+                    {!dossier && role === 'secretaria' && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteDossierId(dId); }}
+                        className="p-4 bg-rose-500/10 text-rose-500 hover:bg-rose-600 hover:text-white rounded-[1.5rem] transition-all border border-rose-500/20 shadow-sm flex items-center justify-center"
+                        title="Supprimer ce dossier orphelin et ses unités associées"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     )}
                     
                     <div className="text-slate-300">
@@ -248,6 +290,39 @@ export default function Finances() {
                 <button 
                   onClick={() => setConfirmPayDossierId(null)}
                   className="px-8 py-4 text-slate-400 font-bold uppercase hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl transition-all"
+                >
+                  Annuler
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {confirmDeleteDossierId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 max-w-lg w-full shadow-2xl border border-slate-100 dark:border-slate-800"
+            >
+              <div className="bg-rose-100 dark:bg-rose-500/20 w-20 h-20 rounded-3xl flex items-center justify-center text-rose-600 mb-8 max-w-lg">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-4">Supprimer Dossier</h3>
+              <p className="text-slate-500 leading-relaxed mb-8">
+                Vous allez supprimer définitivement ce dossier non référencé et toutes ses unités associées ({groupedData[confirmDeleteDossierId]?.length || 0} conteneurs/chargements). Cette action est irréversible.
+              </p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => handleDeleteUnreferencedDossier(confirmDeleteDossierId)}
+                  className="flex-1 bg-rose-600 text-white font-black uppercase py-4 rounded-2xl hover:bg-rose-700 transition-all shadow-lg text-xs tracking-wider"
+                >
+                  Supprimer définitivement
+                </button>
+                <button 
+                  onClick={() => setConfirmDeleteDossierId(null)}
+                  className="px-8 py-4 text-slate-400 font-bold uppercase hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl transition-all text-xs tracking-wider"
                 >
                   Annuler
                 </button>

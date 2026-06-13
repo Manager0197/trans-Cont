@@ -414,8 +414,6 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
   const [chargements, setChargements] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!expanded) return;
-    
     const unsubC = onSnapshot(query(collection(db, "conteneurs"), where("dossierId", "==", dossier.id)), snap => {
       setConteneurs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (error) => {
@@ -429,7 +427,7 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
     });
 
     return () => { unsubC(); unsubCh(); };
-  }, [expanded, dossier.id]);
+  }, [dossier.id]);
 
   const toggleStatus = async () => {
     try {
@@ -444,6 +442,11 @@ function DossierCard({ dossier, camions }: DossierCardProps) {
 
   const handleDeleteDossier = async () => {
     try {
+      // Clean up associated conteneurs and chargements in parallel to prevent leaving orphans
+      const deleteConteneursPromises = conteneurs.map(c => deleteDoc(doc(db, "conteneurs", c.id)));
+      const deleteChargementsPromises = chargements.map(ch => deleteDoc(doc(db, "chargements", ch.id)));
+      
+      await Promise.all([...deleteConteneursPromises, ...deleteChargementsPromises]);
       await deleteDoc(doc(db, "dossiers", dossier.id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `dossiers/${dossier.id}`);
